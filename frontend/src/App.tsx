@@ -10,7 +10,7 @@ import {
   uploadDocument,
 } from "./api";
 import { advisoryNotes, isAutoAccepted } from "./advisory";
-import { DashboardCharts } from "./components/DashboardCharts";
+import { DashboardCharts, matchesDashboardFilter } from "./components/DashboardCharts";
 import { DrawerShell, DocumentsDrawer } from "./components/Drawers";
 import {
   AdditionalFactsView,
@@ -674,7 +674,7 @@ function CasesHome({
 
   const visibleCases = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return cases.filter(({ case: item }) => {
+    return cases.filter(({ case: item, document_count, last_activity_at }) => {
       const matchesSearch = !needle || [
         item.applicant_display_name,
         item.external_case_id,
@@ -687,7 +687,9 @@ function CasesHome({
         queueFilter === "all"
         || (queueFilter === "medical" && stage.includes("medical"))
         || (queueFilter === "compliance" && stage.includes("compliance"))
-        || (queueFilter === "sla" && stage.includes("sla"));
+        || (queueFilter === "sla" && stage.includes("sla"))
+        || (["review", "awaiting_documents", "idle"].includes(queueFilter)
+          && matchesDashboardFilter({ case: item, document_count, last_activity_at }, queueFilter));
       return matchesSearch && matchesQueue;
     });
   }, [cases, queueFilter, search]);
@@ -746,20 +748,9 @@ function CasesHome({
           <button type="button" className="active">NB & UW</button>
         </nav>
 
-        <section className="dashboard-summary" aria-label="Queue summary">
-          <div>
-            <span>My cases by current stage</span>
-            <strong>{cases.length}</strong>
-            <small>open cases</small>
-          </div>
-          <div>
-            <span>Pending evidence reviews</span>
-            <strong>{cases.filter(({ case: item }) => item.workflow_stage === "human_review").length}</strong>
-            <small>assigned to you</small>
-          </div>
-        </section>
-
-        {!loading && !error ? <DashboardCharts cases={cases} refreshedAt={refreshedAt} /> : null}
+        {!loading && !error ? (
+          <DashboardCharts cases={cases} refreshedAt={refreshedAt} activeFilter={queueFilter} onFilter={setQueueFilter} />
+        ) : null}
 
         {notice ? <div className="notice blue cases-notice" role="status">{notice}</div> : null}
         {error ? (
@@ -840,7 +831,9 @@ function CasesHome({
         <section className="case-list-section" aria-labelledby="case-list-title">
           <div className="case-list-heading">
             <div><h2 id="case-list-title">Cases</h2></div>
-            {!loading && !error ? <span className="tag neutral">{visibleCases.length} open case{visibleCases.length === 1 ? "" : "s"}</span> : null}
+            {!loading && !error && visibleCases.length !== cases.length ? (
+              <span className="tag neutral">Showing {visibleCases.length} of {cases.length}</span>
+            ) : null}
           </div>
           <div className="dashboard-queue-filters" aria-label="Filter work queue">
             {[
