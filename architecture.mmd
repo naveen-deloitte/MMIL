@@ -1,0 +1,71 @@
+flowchart LR
+  USER[MMIL reviewer] -->|HTTPS existing Cognito session| UI[Static MMIL medical evidence UI]
+  UI -->|/api/v1/idp/*| CF[Existing CloudFront + CloudFront WAF]
+  CF -->|existing /api/* behavior| ALB[Existing dev ALB + regional WAF]
+  ALB --> BFF[Existing Launchpad API BFF]
+  BFF -->|validate MMIL case access| AUTH[Existing Cognito/session + org authorization]
+  BFF -->|signed short-lived service context| IDPAPI[Private reusable IDP API service]
+
+  subgraph EXISTING["Existing Launchpad dev resources · ap-south-1"]
+    VPC[VPC 10.20.0.0/16
+private-egress + isolated-data]
+    FILES[(launchpad-dev-files
+SSE-KMS + versioning)]
+    RDS[(RDS PostgreSQL 17
+new idp schema + idp_dev role)]
+    KMS[Data KMS key]
+    OPENAI[Secrets Manager
+Azure OpenAI key]
+    OBS[CloudWatch logs / metrics / alarms]
+  end
+
+  subgraph IDP["New Launchpad-dev-Idp ownership boundary"]
+    IDPAPI -->|create scoped upload/source URL| FILES
+    IDPAPI --> RDS
+    IDPAPI -->|IDs only| Q[SQS launchpad-dev-idp]
+    Q -. after 3 receives .-> DLQ[SQS launchpad-dev-idp-dlq]
+    Q --> WORKER[Private IDP worker
+1 vCPU / 2 GB · concurrency 1]
+    WORKER --> FILES
+    WORKER --> RDS
+    WORKER --> SCAN[Approved scan interface
+basic EICAR guard only in local dev]
+    WORKER --> TEXT[PyMuPDF native text]
+    TEXT -->|image-only page| OCR[RapidOCR ONNX
+container adapter]
+    TEXT --> CLASSIFY[Versioned document-type classifier]
+    OCR --> CLASSIFY
+    CLASSIFY --> PIPE[Configurable typed extraction pipeline]
+    PIPE -->|only if approved| AZURE[Approved Azure OpenAI endpoint
+pinned deployment via NAT]
+    PIPE --> VALIDATE[Type + exact citation validation]
+    VALIDATE --> RESULT[Primary schema fields
++ grounded additional facts]
+    IDPAPI --> DISCOVERY[Private Service Connect / Cloud Map]
+  end
+
+  IDPAPI -. no public ingress .- VPC
+  WORKER -. private-egress subnet .- VPC
+  RDS -. isolated-data subnet .- VPC
+  KMS --> FILES
+  KMS --> RDS
+  KMS --> Q
+  KMS --> DLQ
+  OPENAI -->|worker secret only| WORKER
+  IDPAPI --> OBS
+  WORKER --> OBS
+
+  UI -->|pre-signed PUT / GET from IDP via BFF| FILES
+  RESULT -->|generic IDP response through BFF| UI
+  UI --> VIEW[Side-by-side uploaded source
+and document-specific fields]
+
+  CLI[Standalone Python package / CLI] --> PIPE
+  REGISTRY[Versioned type definitions
+medical first, future types by config] --> CLASSIFY
+  REGISTRY --> PIPE
+
+  classDef existing fill:#eef5ff,stroke:#0176d3,color:#123;
+  classDef sensitive fill:#fff3e0,stroke:#dd7a01,color:#4a2b00;
+  class VPC,CF,ALB,BFF,AUTH,FILES,RDS,KMS,OPENAI,OBS existing;
+  class FILES,RDS,Q,DLQ,WORKER,TEXT,OCR,PIPE,AZURE,RESULT sensitive;

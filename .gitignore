@@ -1,0 +1,39 @@
+# Python
+.venv/
+.runtime-audit/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Runtime data and secrets
+.env
+var/
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Local portable tools
+.tools/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated samples (source generator is tracked)
+sample-data/*.pdf
+sample-data/*.png
+sample-data/*.jpg
+sample-data/uploads/

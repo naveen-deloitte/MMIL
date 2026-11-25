@@ -1,0 +1,77 @@
+services:
+  database:
+    image: postgres:16.6-alpine3.21
+    environment:
+      POSTGRES_DB: idp
+      POSTGRES_USER: idp_local
+      POSTGRES_PASSWORD: local_only_change_me
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idp_local -d idp"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [backend]
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment: &idp-environment
+      IDP_ENVIRONMENT: development
+      IDP_AUTH_MODE: demo
+      IDP_DATABASE_URL: postgresql+psycopg://idp_local:local_only_change_me@database:5432/idp
+      IDP_OBJECT_ROOT: /app/var/objects
+      IDP_DOCUMENT_TYPE_PATH: /app/config/document-types/medical-report.v1.json
+      IDP_STORAGE_BACKEND: local
+      IDP_QUEUE_BACKEND: database
+      IDP_SCANNER_BACKEND: development-basic
+      IDP_OCR_PROVIDER: none
+      IDP_EXTRACTION_PROVIDER: deterministic-local
+      IDP_ALLOWED_PROVIDERS: deterministic-local
+      IDP_SEED_DEMO_CASE: "true"
+      IDP_CORS_ORIGINS: http://localhost:8080
+    volumes:
+      - document-objects:/app/var/objects
+    depends_on:
+      database:
+        condition: service_healthy
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/live')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: ["python", "-m", "idp.worker"]
+    environment: *idp-environment
+    volumes:
+      - document-objects:/app/var/objects
+    depends_on:
+      database:
+        condition: service_healthy
+    networks: [backend]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [backend]
+
+networks:
+  backend:
+    internal: false
+
+volumes:
+  postgres-data:
+  document-objects:

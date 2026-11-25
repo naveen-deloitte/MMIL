@@ -1,0 +1,624 @@
+{
+  "document_type": "medical_report",
+  "schema_version": "1.0.0",
+  "display_name": "Medical report",
+  "constraints": {
+    "media_types": [
+      "application/pdf",
+      "image/jpeg",
+      "image/png",
+      "image/tiff"
+    ],
+    "max_pages": 200
+  },
+  "fields": [
+    {
+      "path": "report.observed_date",
+      "label": "Report date",
+      "data_type": "date",
+      "ui_section": "summary",
+      "ui_group": "Report",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Report|Examination|Observed)[ \\t]+Date[ \\t]*[:\\-][ \\t]*(?P<value>\\d{4}-\\d{2}-\\d{2}|\\d{1,2}[ /-][A-Za-z]{3,9}[ /-]\\d{4})[ \\t]*$"
+        }
+      ],
+      "description": "Explicit Report date value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "observations.height_cm",
+      "label": "Height",
+      "data_type": "decimal",
+      "ui_section": "vitals",
+      "ui_group": "Body measurements",
+      "unit": "cm",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*Height[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:cm|centimet(?:re|er)s?)[ \\t]*$"
+        }
+      ],
+      "description": "Explicit Height value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "observations.weight_kg",
+      "label": "Weight",
+      "data_type": "decimal",
+      "ui_section": "vitals",
+      "ui_group": "Body measurements",
+      "unit": "kg",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*Weight[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:kg|kilograms?)[ \\t]*$"
+        }
+      ],
+      "description": "Explicit Weight value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "observations.bmi",
+      "label": "BMI",
+      "data_type": "decimal",
+      "ui_section": "vitals",
+      "ui_group": "Body measurements",
+      "unit": "kg/m²",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:BMI|Body Mass Index)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)(?:[ \\t]*(?:kg/m(?:2|²)))?[ \\t]*$"
+        }
+      ],
+      "description": "Explicit BMI value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "observations.blood_pressure",
+      "label": "Blood pressure",
+      "data_type": "measurement_pair",
+      "ui_section": "vitals",
+      "ui_group": "Vitals",
+      "unit": "mmHg",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Blood Pressure|BP)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}[ \\t]*/[ \\t]*\\d{2,3})(?:[ \\t]*mmHg)?[ \\t]*$"
+        }
+      ],
+      "description": "Explicit Blood pressure value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "measurement_pair"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "observations.pulse_bpm",
+      "label": "Pulse",
+      "data_type": "integer",
+      "ui_section": "vitals",
+      "ui_group": "Vitals",
+      "unit": "bpm",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Pulse|Heart Rate)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3})(?:[ \\t]*(?:bpm|/min))?[ \\t]*$"
+        }
+      ],
+      "description": "Explicit Pulse value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "integer"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "observations.respiratory_rate_bpm",
+      "label": "Respiratory rate",
+      "data_type": "integer",
+      "ui_section": "vitals",
+      "ui_group": "Vitals",
+      "unit": "breaths/min",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Respiratory Rate|Respiration Rate|Resp Rate|RR)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3})(?:[ \\t]*(?:breaths?[ \\t]*(?:/|per[ \\t]*)[ \\t]*min(?:ute)?|/min|rpm))?[ \\t]*$"
+        }
+      ],
+      "description": "Explicit respiratory rate value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "integer"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "observations.body_temperature",
+      "label": "Body temperature",
+      "data_type": "text",
+      "ui_section": "vitals",
+      "ui_group": "Vitals",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Body[ \\t]+)?(?:Temperature|Temp)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?(?:[ \\t]*(?:°[ \\t]*[FC]|degrees?[ \\t]*[FC]))?)[ \\t]*$"
+        }
+      ],
+      "description": "Explicit body temperature as printed in the report, preserving its stated unit.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "cardiac.ecg",
+      "label": "Resting ECG",
+      "data_type": "text",
+      "ui_section": "vitals",
+      "ui_group": "Cardiac",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Resting[ \\t]+)?ECG[ \\t]*[:\\-][ \\t]*(?P<value>[^\\r\\n]{1,160})$"
+        }
+      ],
+      "description": "Explicit Resting ECG value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "cardiac.tmt",
+      "label": "TMT / Stress ECG",
+      "data_type": "text",
+      "ui_section": "vitals",
+      "ui_group": "Cardiac",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:TMT|Stress ECG|Stress Test)[ \\t]*[:\\-][ \\t]*(?P<value>[^\\r\\n]{1,160})$"
+        }
+      ],
+      "description": "Explicit TMT / Stress ECG value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "lifestyle.tobacco",
+      "label": "Tobacco",
+      "data_type": "text",
+      "ui_section": "summary",
+      "ui_group": "Lifestyle and history",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Tobacco|Smoking)[ \\t]*[:\\-][ \\t]*(?P<value>[^\\r\\n]{1,160})$"
+        }
+      ],
+      "description": "Explicit Tobacco value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "lifestyle.alcohol",
+      "label": "Alcohol",
+      "data_type": "text",
+      "ui_section": "summary",
+      "ui_group": "Lifestyle and history",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*Alcohol[ \\t]*[:\\-][ \\t]*(?P<value>[^\\r\\n]{1,160})$"
+        }
+      ],
+      "description": "Explicit Alcohol value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "history.conditions",
+      "label": "Disclosed conditions",
+      "data_type": "text",
+      "ui_section": "summary",
+      "ui_group": "Lifestyle and history",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Conditions|Medical History)[ \\t]*[:\\-][ \\t]*(?P<value>[^\\r\\n]{1,240})$"
+        }
+      ],
+      "description": "Explicit Disclosed conditions value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "history.family",
+      "label": "Family history",
+      "data_type": "text",
+      "ui_section": "summary",
+      "ui_group": "Lifestyle and history",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*Family History[ \\t]*[:\\-][ \\t]*(?P<value>[^\\r\\n]{1,240})$"
+        }
+      ],
+      "description": "Explicit Family history value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.fasting_glucose",
+      "label": "Fasting blood sugar",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Blood sugar & diabetes",
+      "unit": "mg/dL",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Fasting Blood Sugar|Fasting Glucose|FBS)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit Fasting blood sugar value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.hba1c",
+      "label": "HbA1c",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Blood sugar & diabetes",
+      "unit": "%",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:HbA1c|A1c)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)[ \\t]*%?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit HbA1c value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.total_cholesterol",
+      "label": "Total cholesterol",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Lipid profile",
+      "unit": "mg/dL",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Total Cholesterol|Cholesterol Total)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit Total cholesterol value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.ldl",
+      "label": "LDL cholesterol",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Lipid profile",
+      "unit": "mg/dL",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:LDL(?: Cholesterol)?|LDL-C)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit LDL cholesterol value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.hdl",
+      "label": "HDL cholesterol",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Lipid profile",
+      "unit": "mg/dL",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:HDL(?: Cholesterol)?|HDL-C)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit HDL cholesterol value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.triglycerides",
+      "label": "Triglycerides",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Lipid profile",
+      "unit": "mg/dL",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*Triglycerides[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit Triglycerides value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.ast",
+      "label": "SGOT (AST)",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Liver function",
+      "unit": "U/L",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:SGOT(?: \\(AST\\))?|AST)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)(?:[ \\t]*U/L)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit SGOT (AST) value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.alt",
+      "label": "SGPT (ALT)",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Liver function",
+      "unit": "U/L",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:SGPT(?: \\(ALT\\))?|ALT)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)(?:[ \\t]*U/L)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit SGPT (ALT) value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.creatinine",
+      "label": "Serum creatinine",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Kidney function",
+      "unit": "mg/dL",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*(?:Serum )?Creatinine[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit Serum creatinine value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "labs.egfr",
+      "label": "eGFR",
+      "data_type": "decimal",
+      "ui_section": "labs",
+      "ui_group": "Kidney function",
+      "unit": "mL/min/1.73m²",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*eGFR[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mL/min(?:/1\\.73m(?:2|²))?)?(?:[ \\t]+.*)?$"
+        }
+      ],
+      "description": "Explicit eGFR value as stated in the document.",
+      "normalizers": [
+        "trim",
+        "decimal"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "screening.hiv",
+      "label": "HIV",
+      "data_type": "text",
+      "ui_section": "labs",
+      "ui_group": "Screening tests",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*HIV(?:[ \\t]+\\(ELISA\\))?[ \\t]*[:\\-][ \\t]*(?P<value>Negative|Positive|Reactive|Non-reactive|Nonreactive)[ \\t]*$"
+        }
+      ],
+      "description": "Explicit HIV value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    },
+    {
+      "path": "screening.hbsag",
+      "label": "HBsAg",
+      "data_type": "text",
+      "ui_section": "labs",
+      "ui_group": "Screening tests",
+      "required": false,
+      "citations_required": true,
+      "patterns": [
+        {
+          "regex": "(?im)^[ \\t]*HBsAg[ \\t]*[:\\-][ \\t]*(?P<value>Negative|Positive|Reactive|Non-reactive|Nonreactive)[ \\t]*$"
+        }
+      ],
+      "description": "Explicit HBsAg value as stated in the document.",
+      "normalizers": [
+        "trim"
+      ],
+      "validators": [
+        "type"
+      ]
+    }
+  ],
+  "classification": {
+    "hints": [
+      "medical examination report",
+      "laboratory report",
+      "blood pressure",
+      "HbA1c",
+      "lipid profile"
+    ],
+    "minimum_confidence": 0.8,
+    "separation_margin": 0.1,
+    "on_uncertain": "require_type_selection"
+  },
+  "extraction": {
+    "strategy": "llm_with_deterministic_validation",
+    "prompt_version": "medical-report-1.2.0",
+    "capture_additional_facts": true
+  },
+  "additional_facts": {
+    "enabled": true,
+    "allowed_categories": [
+      "medication",
+      "history",
+      "observation",
+      "laboratory",
+      "note",
+      "other"
+    ],
+    "citations_required": true,
+    "max_items": 100
+  }
+}

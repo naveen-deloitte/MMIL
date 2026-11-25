@@ -1,0 +1,561 @@
+{
+  "document_type": "kyc_individual",
+  "schema_version": "1.0.0",
+  "display_name": "Individual KYC form",
+  "classification": {
+    "hints": ["know your customer", "personal information", "bank details"],
+    "minimum_confidence": 0.8,
+    "separation_margin": 0.1,
+    "on_uncertain": "require_type_selection"
+  },
+  "constraints": {
+    "media_types": ["application/pdf", "image/jpeg", "image/png", "image/tiff"],
+    "max_pages": 40
+  },
+  "extraction": {
+    "strategy": "deterministic_only",
+    "prompt_version": "kyc-individual-local-1.0.0",
+    "capture_additional_facts": false
+  },
+  "additional_facts": {
+    "enabled": false,
+    "allowed_categories": [],
+    "citations_required": true,
+    "max_items": 0
+  },
+  "fields": [
+    {
+      "path": "identity.title",
+      "label": "Title",
+      "description": "Applicant title exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*Title\\s*:\\s*(?P<value>[^\\r\\n]{1,80})\\s*$"}]
+    },
+    {
+      "path": "identity.surname",
+      "label": "Surname",
+      "description": "Applicant surname exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "required": true,
+      "patterns": [{"regex": "(?im)^\\s*Surname\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "identity.first_name",
+      "label": "First name",
+      "description": "Applicant first name exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "required": true,
+      "patterns": [{"regex": "(?im)^\\s*First Name\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "identity.other_names",
+      "label": "Other names",
+      "description": "Applicant other names exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*Other Names\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "identity.date_of_birth",
+      "label": "Date of birth",
+      "description": "Date of birth as printed or supplied in the KYC form.",
+      "data_type": "date",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*Date of Birth\\s*:\\s*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{4})\\s*$"}]
+    },
+    {
+      "path": "identity.gender",
+      "label": "Gender",
+      "description": "Gender exactly as stated in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*Gender\\s*:\\s*(?P<value>[^\\r\\n]{1,40})\\s*$"}]
+    },
+    {
+      "path": "identity.marital_status",
+      "label": "Marital status",
+      "description": "Marital status exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*Marital Status\\s*:\\s*(?P<value>[^\\r\\n]{1,80})\\s*$"}]
+    },
+    {
+      "path": "identity.nationality",
+      "label": "Nationality",
+      "description": "Nationality exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*Nationality\\s*:\\s*(?P<value>[^\\r\\n]{1,100})\\s*$"}]
+    },
+    {
+      "path": "identity.state_of_origin",
+      "label": "State of origin",
+      "description": "State of origin exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*State of Origin\\s*:\\s*(?P<value>[^\\r\\n]{1,100})\\s*$"}]
+    },
+    {
+      "path": "identity.religion",
+      "label": "Religion",
+      "description": "Religion exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Personal information",
+      "patterns": [{"regex": "(?im)^\\s*Religion\\s*:\\s*(?P<value>[^\\r\\n]{1,100})\\s*$"}]
+    },
+    {
+      "path": "identity.occupation",
+      "label": "Occupation",
+      "description": "Occupation exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Work and proposal",
+      "patterns": [{"regex": "(?im)^\\s*Occupation\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "identity.nature_of_work",
+      "label": "Nature of work",
+      "description": "Nature of work exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Work and proposal",
+      "patterns": [{"regex": "(?im)^\\s*Nature of Work\\s*:\\s*(?P<value>[^\\r\\n]{1,160})\\s*$"}]
+    },
+    {
+      "path": "identity.proposed_product",
+      "label": "Proposed insurance product",
+      "description": "Proposed insurance product exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Work and proposal",
+      "patterns": [{"regex": "(?im)^\\s*Proposed Insurance Product\\s*:\\s*(?P<value>[^\\r\\n]{1,160})\\s*$"}]
+    },
+    {
+      "path": "identity.items_value",
+      "label": "Value of items to insure",
+      "description": "Value stated for items to insure; no conversion or valuation is performed.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Work and proposal",
+      "patterns": [{"regex": "(?im)^\\s*Value of items to insure\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "identity.preferred_insurer",
+      "label": "Preferred insurer",
+      "description": "Preferred insurer exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Work and proposal",
+      "patterns": [{"regex": "(?im)^\\s*Name of preferred insurer(?:,? if any)?\\s*:\\s*(?P<value>[^\\r\\n]{1,160})\\s*$"}]
+    },
+    {
+      "path": "contact.email",
+      "label": "Email address",
+      "description": "Applicant email address exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Contact",
+      "patterns": [{"regex": "(?im)^\\s*Email Address\\s*:\\s*(?P<value>[^\\s@]+@[^\\s@]+\\.[^\\s@]+)\\s*$"}]
+    },
+    {
+      "path": "contact.telephone",
+      "label": "Telephone number",
+      "description": "Applicant telephone number exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Contact",
+      "patterns": [{"regex": "(?im)^\\s*Telephone Number\\s*:\\s*(?P<value>[+()0-9 .-]{7,30})\\s*$"}]
+    },
+    {
+      "path": "contact.residential_address",
+      "label": "Residential address",
+      "description": "Residential address exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Addresses",
+      "patterns": [{"regex": "(?im)^\\s*Residential Address\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "contact.office_address",
+      "label": "Office address",
+      "description": "Office address exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Addresses",
+      "patterns": [{"regex": "(?im)^\\s*Office Address\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "bank_details.bank_name",
+      "label": "Bank name",
+      "description": "Bank name exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Bank details",
+      "patterns": [{"regex": "(?im)^\\s*Bank Name\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "bank_details.bank_address",
+      "label": "Bank address",
+      "description": "Bank address exactly as supplied in the KYC form.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Bank details",
+      "patterns": [{"regex": "(?im)^\\s*Bank Address\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "bank_details.account_number",
+      "label": "Account number",
+      "description": "Bank account number exactly as supplied; leading zeros are preserved.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Bank details",
+      "patterns": [{"regex": "(?im)^\\s*Account Number\\s*:\\s*(?P<value>[A-Za-z0-9 -]{4,40})\\s*$"}]
+    },
+    {
+      "path": "bank_details.bvn",
+      "label": "BVN",
+      "description": "Bank verification number exactly as supplied; no validation against an external service is performed.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Bank details",
+      "patterns": [{"regex": "(?im)^\\s*BVN\\s*:\\s*(?P<value>[0-9 -]{8,20})\\s*$"}]
+    },
+    {
+      "path": "consent.data_privacy",
+      "label": "Data privacy consent",
+      "description": "Explicit data privacy consent response, if present in text.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Consent and declaration",
+      "patterns": [{"regex": "(?im)^\\s*Data Privacy Consent\\s*:\\s*(?P<value>Yes|No|Accepted|Declined)\\s*$"}]
+    },
+    {
+      "path": "consent.marketing",
+      "label": "Marketing consent",
+      "description": "Explicit marketing consent response, if present in text.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Consent and declaration",
+      "patterns": [{"regex": "(?im)^\\s*Marketing Consent\\s*:\\s*(?P<value>Yes|No|Accepted|Declined)\\s*$"}]
+    },
+    {
+      "path": "consent.signature_date",
+      "label": "Declaration signature date",
+      "description": "Signature date exactly as stated; the signature itself is not authenticated.",
+      "data_type": "date",
+      "ui_section": "consent",
+      "ui_group": "Consent and declaration",
+      "patterns": [{"regex": "(?im)^\\s*Signature and Date\\s*:\\s*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{4})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_name",
+      "label": "Next of kin 1 name",
+      "description": "First listed next-of-kin name, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Name\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_telephone",
+      "label": "Next of kin 1 telephone",
+      "description": "First listed next-of-kin telephone number, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Telephone\\s*:\\s*(?P<value>[+()0-9 .-]{7,30})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_email",
+      "label": "Next of kin 1 email",
+      "description": "First listed next-of-kin email address, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Email\\s*:\\s*(?P<value>[^\\s@]+@[^\\s@]+\\.[^\\s@]+)\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_address_1",
+      "label": "Next of kin 1 address line 1",
+      "description": "First listed next-of-kin address line, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Address 1\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_address_2",
+      "label": "Next of kin 1 address line 2",
+      "description": "Second listed next-of-kin address line, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Address 2\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_relationship",
+      "label": "Next of kin 1 relationship",
+      "description": "First listed next-of-kin relationship, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Relationship\\s*:\\s*(?P<value>[^\\r\\n]{1,100})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_date_of_birth",
+      "label": "Next of kin 1 date of birth",
+      "description": "First listed next-of-kin date of birth, exactly as supplied.",
+      "data_type": "date",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Date of Birth\\s*:\\s*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{4})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_1_gender",
+      "label": "Next of kin 1 gender",
+      "description": "First listed next-of-kin gender exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 1 Gender\\s*:\\s*(?P<value>[^\\r\\n]{1,40})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_name",
+      "label": "Next of kin 2 name",
+      "description": "Second listed next-of-kin name, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Name\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_telephone",
+      "label": "Next of kin 2 telephone",
+      "description": "Second listed next-of-kin telephone number, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Telephone\\s*:\\s*(?P<value>[+()0-9 .-]{7,30})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_email",
+      "label": "Next of kin 2 email",
+      "description": "Second listed next-of-kin email address, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Email\\s*:\\s*(?P<value>[^\\s@]+@[^\\s@]+\\.[^\\s@]+)\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_address_1",
+      "label": "Next of kin 2 address line 1",
+      "description": "First address line for the second listed next of kin.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Address 1\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_address_2",
+      "label": "Next of kin 2 address line 2",
+      "description": "Second address line for the second listed next of kin.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Address 2\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_relationship",
+      "label": "Next of kin 2 relationship",
+      "description": "Second listed next-of-kin relationship, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Relationship\\s*:\\s*(?P<value>[^\\r\\n]{1,100})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_date_of_birth",
+      "label": "Next of kin 2 date of birth",
+      "description": "Second listed next-of-kin date of birth, exactly as supplied.",
+      "data_type": "date",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Date of Birth\\s*:\\s*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{4})\\s*$"}]
+    },
+    {
+      "path": "contact.next_of_kin_2_gender",
+      "label": "Next of kin 2 gender",
+      "description": "Second listed next-of-kin gender exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Next of kin",
+      "patterns": [{"regex": "(?im)^\\s*Next of Kin 2 Gender\\s*:\\s*(?P<value>[^\\r\\n]{1,40})\\s*$"}]
+    },
+    {
+      "path": "bank_details.source_of_income",
+      "label": "Source of income or funds",
+      "description": "Expected source of premium funds exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Additional financial information",
+      "patterns": [{"regex": "(?im)^\\s*Expected Source of Income\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "contact.previous_address",
+      "label": "Previous address",
+      "description": "Previous house address exactly as supplied, if present.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Addresses",
+      "patterns": [{"regex": "(?im)^\\s*Previous House Address\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "identity.referral_source",
+      "label": "Referral source",
+      "description": "How the applicant learned of the provider, exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Work and proposal",
+      "patterns": [{"regex": "(?im)^\\s*Referral Source\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "identity.referral_details",
+      "label": "Referral details",
+      "description": "Referral details exactly as supplied.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Work and proposal",
+      "patterns": [{"regex": "(?im)^\\s*Referral Details\\s*:\\s*(?P<value>[^\\r\\n]{1,250})\\s*$"}]
+    },
+    {
+      "path": "supporting_documents.birth_certificate",
+      "label": "Birth certificate or sworn affidavit",
+      "description": "Document checklist response exactly as stated, if present.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Supporting documents",
+      "patterns": [{"regex": "(?im)^\\s*Birth Certificate or Sworn Affidavit\\s*:\\s*(?P<value>[^\\r\\n]{1,80})\\s*$"}]
+    },
+    {
+      "path": "supporting_documents.passport_or_id",
+      "label": "Passport or national ID",
+      "description": "Document checklist response exactly as stated, if present.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Supporting documents",
+      "patterns": [{"regex": "(?im)^\\s*Current International Passport/National ID\\s*:\\s*(?P<value>[^\\r\\n]{1,80})\\s*$"}]
+    },
+    {
+      "path": "supporting_documents.utility_bill",
+      "label": "Recent utility bill",
+      "description": "Document checklist response exactly as stated, if present.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Supporting documents",
+      "patterns": [{"regex": "(?im)^\\s*Current/Recent Utility Bill\\s*:\\s*(?P<value>[^\\r\\n]{1,80})\\s*$"}]
+    },
+    {
+      "path": "supporting_documents.residence_permit",
+      "label": "Residence permit",
+      "description": "Document checklist response exactly as stated, if present.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Supporting documents",
+      "patterns": [{"regex": "(?im)^\\s*Current Residence Permit\\s*:\\s*(?P<value>[^\\r\\n]{1,80})\\s*$"}]
+    },
+    {
+      "path": "consent.other_companies_marketing",
+      "label": "Other companies marketing",
+      "description": "Marketing consent choice from the corresponding KYC checkbox, if selected.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Marketing choices",
+      "patterns": [{"regex": "(?im)^\\s*Marketing Other Companies Consent\\s*:\\s*(?P<value>Yes|No)\\s*$"}]
+    },
+    {
+      "path": "consent.marketing_research",
+      "label": "Research contact consent",
+      "description": "Research contact consent choice from the corresponding KYC checkbox, if selected.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Marketing choices",
+      "patterns": [{"regex": "(?im)^\\s*Marketing Research Consent\\s*:\\s*(?P<value>Yes|No)\\s*$"}]
+    },
+    {
+      "path": "consent.direct_marketing",
+      "label": "Direct marketing consent",
+      "description": "Direct marketing consent choice from the corresponding KYC checkbox, if selected.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Marketing choices",
+      "patterns": [{"regex": "(?im)^\\s*Direct Marketing Consent\\s*:\\s*(?P<value>Yes|No)\\s*$"}]
+    },
+    {
+      "path": "consent.group_marketing",
+      "label": "Group marketing consent",
+      "description": "Group marketing consent choice from the corresponding KYC checkbox, if selected.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Marketing choices",
+      "patterns": [{"regex": "(?im)^\\s*Group Marketing Consent\\s*:\\s*(?P<value>Yes|No)\\s*$"}]
+    },
+    {
+      "path": "consent.declaration_name",
+      "label": "Declaration name",
+      "description": "Name entered in the applicant declaration section.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Consent and declaration",
+      "patterns": [{"regex": "(?im)^\\s*Declaration Name\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "consent.privacy_name",
+      "label": "Privacy consent name",
+      "description": "Name entered in the data privacy consent section.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Consent and declaration",
+      "patterns": [{"regex": "(?im)^\\s*Privacy Consent Name\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "consent.privacy_signature_date",
+      "label": "Privacy consent signature date",
+      "description": "Date entered in the privacy consent signature field.",
+      "data_type": "date",
+      "ui_section": "consent",
+      "ui_group": "Consent and declaration",
+      "patterns": [{"regex": "(?im)^\\s*Privacy Consent Signature Date\\s*:\\s*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{4})\\s*$"}]
+    },
+    {
+      "path": "consent.marketing_name",
+      "label": "Marketing consent name",
+      "description": "Name entered in the marketing consent section.",
+      "data_type": "text",
+      "ui_section": "consent",
+      "ui_group": "Marketing choices",
+      "patterns": [{"regex": "(?im)^\\s*Marketing Consent Name\\s*:\\s*(?P<value>[^\\r\\n]{1,120})\\s*$"}]
+    },
+    {
+      "path": "consent.marketing_signature_date",
+      "label": "Marketing consent signature date",
+      "description": "Date entered in the marketing consent signature field.",
+      "data_type": "date",
+      "ui_section": "consent",
+      "ui_group": "Marketing choices",
+      "patterns": [{"regex": "(?im)^\\s*Marketing Consent Signature Date\\s*:\\s*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{4})\\s*$"}]
+    }
+  ]
+}

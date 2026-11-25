@@ -1,0 +1,12 @@
+31 files left unchanged
+All checks passed!
+31 files already formatted
+........................................................................ [ 93%]
+.....                                                                    [100%]
+============================== warnings summary ===============================
+.venv\lib\site-packages\fastapi\testclient.py:1
+  C:\Users\vyadav16\Downloads\Test-Code\IDP\.venv\lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+77 passed, 1 warning in 2.89s
