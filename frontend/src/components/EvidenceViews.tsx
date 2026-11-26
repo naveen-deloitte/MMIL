@@ -175,6 +175,9 @@ export function SummaryView({
   onAiCitation,
   canGenerateSummary,
   onGenerateSummary,
+  canReprocessLocal = false,
+  onReprocessLocal,
+  isLocalRun = false,
   ...actions
 }: {
   fields: EvidenceField[];
@@ -182,6 +185,9 @@ export function SummaryView({
   onAiCitation: (citation: Citation) => void;
   canGenerateSummary: boolean;
   onGenerateSummary: () => void;
+  canReprocessLocal?: boolean;
+  onReprocessLocal?: () => void;
+  isLocalRun?: boolean;
 } & FieldActions) {
   const found = fields.filter((field) => field.candidate_value !== null);
   const summaryFields = found.filter((field) => field.ui_section === "summary");
@@ -205,12 +211,20 @@ export function SummaryView({
             <button type="button" className="secondary-button compact" onClick={onGenerateSummary}>
               Generate AI summary
             </button>
+          ) : canReprocessLocal ? (
+            <button type="button" className="secondary-button compact" onClick={onReprocessLocal}>
+              Re-run local extraction
+            </button>
           ) : null}
         </div>
         {analysis?.summary ? (
           <GroundedStatement statement={analysis.summary} onCitation={onAiCitation} />
         ) : (
-          <p className="quiet-message">An AI summary will appear after the report is processed by the configured AI provider.</p>
+          <p className="quiet-message">
+            {isLocalRun
+              ? "This run used deterministic local extraction. No AI summary was generated."
+              : "An AI summary will appear after the report is processed by the configured AI provider."}
+          </p>
         )}
         <p className="analysis-disclaimer">
           AI-generated report observations are for review only. They are not a diagnosis or treatment plan.
@@ -225,7 +239,11 @@ export function SummaryView({
             ))}
           </div>
         ) : (
-          <p className="quiet-message">Key findings will appear here after AI analysis of the report.</p>
+          <p className="quiet-message">
+            {isLocalRun
+              ? "AI key findings are not generated in deterministic local mode."
+              : "Key findings will appear here after AI analysis of the report."}
+          </p>
         )}
       </section>
       <section className="card-section">

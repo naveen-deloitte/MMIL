@@ -24,12 +24,15 @@ from idp.schemas import (
     CitationOut,
     DocumentSummary,
     EvidenceCounts,
+    ExtractionHistoryOut,
+    ExtractionHistoryRunOut,
     FieldOut,
     ReviewOut,
     RunSummary,
     ValidationOut,
     WorkspaceOut,
 )
+from idp.services.case_evidence import build_case_review_summary
 from idp.services.ingestion import find_case
 
 
@@ -94,6 +97,8 @@ def build_workspace(session: Session, *, tenant_id: str, external_case_id: str) 
         )
 
     field_outputs = [_field_output(session, field) for field in fields]
+    document_outputs = [document_summary(session, document) for document in documents]
+    run_outputs = [RunSummary.model_validate(run) for run in runs]
     extraction_counts = Counter(field.extraction_status for field in field_outputs)
     review_counts = Counter(field.review_state for field in field_outputs)
     counts = EvidenceCounts(
@@ -108,11 +113,71 @@ def build_workspace(session: Session, *, tenant_id: str, external_case_id: str) 
     )
     return WorkspaceOut(
         case=CaseSummary.model_validate(case),
-        documents=[document_summary(session, document) for document in documents],
-        runs=[RunSummary.model_validate(run) for run in runs],
+        documents=document_outputs,
+        runs=run_outputs,
         fields=field_outputs,
         additional_facts=[_fact_output(fact) for fact in facts],
         counts=counts,
+        case_review=build_case_review_summary(
+            documents=document_outputs,
+            runs=run_outputs,
+            fields=field_outputs,
+        ),
+    )
+
+
+def extraction_history(
+    session: Session, *, tenant_id: str, document: Document
+) -> ExtractionHistoryOut:
+    runs = list(
+        session.scalars(
+            select(ExtractionRun)
+            .where(
+                ExtractionRun.document_id == document.id,
+                ExtractionRun.document.has(Document.tenant_id == tenant_id),
+            )
+            .order_by(ExtractionRun.sequence.desc())
+        )
+    )
+    run_ids = [run.id for run in runs]
+    field_rows = (
+        list(
+            session.execute(
+                select(ExtractedField.id, ExtractedField.run_id, ExtractedField.review_state)
+                .where(ExtractedField.run_id.in_(run_ids))
+            )
+        )
+        if run_ids
+        else []
+    )
+    field_ids = [row.id for row in field_rows]
+    reviewed_ids = (
+        set(
+            session.scalars(
+                select(EvidenceReview.field_id).where(EvidenceReview.field_id.in_(field_ids))
+            )
+        )
+        if field_ids
+        else set()
+    )
+    grouped_counts: dict[str, Counter[str]] = {}
+    for row in field_rows:
+        counts = grouped_counts.setdefault(row.run_id, Counter())
+        counts["field_count"] += 1
+        counts["pending_fields"] += row.review_state == "pending"
+        counts["reviewed_fields"] += row.id in reviewed_ids
+
+    return ExtractionHistoryOut(
+        document=document_summary(session, document),
+        runs=[
+            ExtractionHistoryRunOut(
+                run=RunSummary.model_validate(run),
+                field_count=grouped_counts.get(run.id, Counter())["field_count"],
+                pending_fields=grouped_counts.get(run.id, Counter())["pending_fields"],
+                reviewed_fields=grouped_counts.get(run.id, Counter())["reviewed_fields"],
+            )
+            for run in runs
+        ],
     )
 
 

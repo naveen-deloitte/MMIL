@@ -57,6 +57,8 @@ def test_complete_upload_extract_source_review_and_audit_flow(
     # The synthetic report is clean, so nothing is critical and it completes without HITL.
     assert body["documents"][0]["status"] == "completed"
     assert body["counts"]["pending"] == 0
+    assert body["case_review"]["documents_analysed"] == 1
+    assert body["case_review"]["open_flags"] == 0
     assert body["runs"][0]["provider"] == "deterministic-local"
     assert body["counts"]["found"] >= 20
     bmi = next(field for field in body["fields"] if field["field_path"] == "observations.bmi")
@@ -67,6 +69,17 @@ def test_complete_upload_extract_source_review_and_audit_flow(
     assert "BMI: 26.1 kg/m2" in bmi["citations"][0]["excerpt"]
     assert bmi["review_state"] == "accepted"
     assert {"code": "auto_accepted", "severity": "info", "message": None} in bmi["validations"]
+
+    history = client.get(f"/api/v1/documents/{document_id}/extractions/history")
+    assert history.status_code == 200, history.text
+    history_body = history.json()
+    assert history_body["document"]["id"] == document_id
+    assert len(history_body["runs"]) == 1
+    assert history_body["runs"][0]["run"]["id"] == body["runs"][0]["id"]
+    assert history_body["runs"][0]["field_count"] == sum(
+        body["counts"][key] for key in ("found", "uncertain", "not_found")
+    )
+    assert history_body["runs"][0]["pending_fields"] == 0
 
     content = client.get(f"/api/v1/documents/{document_id}/content")
     assert content.status_code == 200
@@ -540,6 +553,101 @@ def test_missing_ai_summary_can_be_regenerated_without_overwriting_prior_run(
         and event["document_id"] == uploaded["id"]
     )
     assert retry_event["metadata"]["reason"] == "missing_ai_summary"
+
+
+def test_completed_local_run_can_be_reprocessed(client: TestClient, app, synthetic_pdf: bytes) -> None:
+    uploaded = upload(
+        client,
+        synthetic_pdf,
+        key="local-reprocess-key-12345",
+    ).json()["document"]
+    assert process_one(app) == uploaded["job_id"]
+
+    retry = client.post(f"/api/v1/documents/{uploaded['id']}/retry")
+
+    assert retry.status_code == 200, retry.text
+    queued = retry.json()
+    assert queued["status"] == "uploaded"
+    assert queued["job_id"] != uploaded["job_id"]
+    audit = client.get(f"/api/v1/cases/{CASE_ID}/audit").json()["items"]
+    retry_event = next(
+        event for event in audit
+        if event["action"] == "document.local_extraction_retry_requested"
+        and event["document_id"] == uploaded["id"]
+    )
+    assert retry_event["metadata"]["reason"] == "manual_local_reprocess"
+
+
+def test_document_removal_deletes_source_and_evidence_but_retains_audit(
+    client: TestClient, app, synthetic_pdf: bytes
+) -> None:
+    uploaded = upload(client, synthetic_pdf, key="remove-completed-key-123").json()["document"]
+    assert process_one(app) == uploaded["job_id"]
+    with app.state.database.session() as session:
+        stored = session.get(Document, uploaded["id"])
+        assert stored is not None
+        object_path = app.state.object_store.path_for(stored.object_key)
+
+    removed = client.delete(f"/api/v1/documents/{uploaded['id']}")
+
+    assert removed.status_code == 200, removed.text
+    assert removed.json() == {"document_id": uploaded["id"], "deleted": True}
+    assert not object_path.exists()
+    assert client.get(f"/api/v1/documents/{uploaded['id']}").status_code == 404
+    assert client.get(f"/api/v1/documents/{uploaded['id']}/extractions/history").status_code == 404
+    workspace = client.get(f"/api/v1/cases/{CASE_ID}/workspace").json()
+    assert all(document["id"] != uploaded["id"] for document in workspace["documents"])
+    assert all(field["document_id"] != uploaded["id"] for field in workspace["fields"])
+    audit = client.get(f"/api/v1/cases/{CASE_ID}/audit").json()["items"]
+    deletion = next(event for event in audit if event["action"] == "document.deleted")
+    assert deletion["document_id"] == uploaded["id"]
+    assert deletion["metadata"]["reason"] == "user_requested"
+
+
+def test_queued_document_can_be_removed_without_leaving_a_worker_job(
+    client: TestClient, app, synthetic_pdf: bytes
+) -> None:
+    uploaded = upload(client, synthetic_pdf, key="remove-queued-key-123").json()["document"]
+
+    removed = client.delete(f"/api/v1/documents/{uploaded['id']}")
+
+    assert removed.status_code == 200, removed.text
+    assert process_one(app) is None
+    assert client.get(f"/api/v1/documents/{uploaded['id']}").status_code == 404
+
+
+def test_removing_a_claimed_document_stops_the_worker_without_retrying_it(
+    client: TestClient, app, synthetic_pdf: bytes
+) -> None:
+    uploaded = upload(client, synthetic_pdf, key="remove-claimed-key-123").json()["document"]
+    service = ProcessingService(
+        settings=app.state.settings,
+        database=app.state.database,
+        store=app.state.object_store,
+        registry=app.state.registry,
+    )
+    job_id = service._claim_next()
+    assert job_id == uploaded["job_id"]
+
+    removed = client.delete(f"/api/v1/documents/{uploaded['id']}")
+
+    assert removed.status_code == 200, removed.text
+    service.process_job(job_id)
+    assert client.get(f"/api/v1/documents/{uploaded['id']}").status_code == 404
+
+
+def test_document_removal_requires_document_management_permission(
+    client: TestClient, synthetic_pdf: bytes
+) -> None:
+    uploaded = upload(client, synthetic_pdf, key="remove-denied-key-123").json()["document"]
+
+    removed = client.delete(
+        f"/api/v1/documents/{uploaded['id']}",
+        headers={"X-Demo-Role": "auditor"},
+    )
+
+    assert removed.status_code == 403
+    assert client.get(f"/api/v1/documents/{uploaded['id']}").status_code == 200
 
 
 def test_upload_idempotency_and_changed_content_conflict(

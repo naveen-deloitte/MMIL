@@ -76,7 +76,7 @@ The supplied deployed Launchpad `infra/` source is not present in this workspace
 Prerequisites:
 
 - Python 3.10+
-- Node.js 20+
+- Node.js 22.12+ (Node 22 or 24 LTS recommended)
 
 ```powershell
 python -m venv .venv

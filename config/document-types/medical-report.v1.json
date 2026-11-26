@@ -44,7 +44,7 @@
       "citations_required": true,
       "patterns": [
         {
-          "regex": "(?im)^[ \\t]*Height[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:cm|centimet(?:re|er)s?)[ \\t]*$"
+          "regex": "(?im)^[ \\t]*Height\\s*[:\\-]\\s*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:cm|centimet(?:re|er)s?)[ \\t]*$"
         }
       ],
       "description": "Explicit Height value as stated in the document.",
@@ -67,7 +67,7 @@
       "citations_required": true,
       "patterns": [
         {
-          "regex": "(?im)^[ \\t]*Weight[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:kg|kilograms?)[ \\t]*$"
+          "regex": "(?im)^[ \\t]*Weight\\s*[:\\-]\\s*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:kg|kilograms?)[ \\t]*$"
         }
       ],
       "description": "Explicit Weight value as stated in the document.",
@@ -90,7 +90,7 @@
       "citations_required": true,
       "patterns": [
         {
-          "regex": "(?im)^[ \\t]*(?:BMI|Body Mass Index)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)(?:[ \\t]*(?:kg/m(?:2|²)))?[ \\t]*$"
+          "regex": "(?im)^[ \\t]*(?:BMI|Body Mass Index)\\s*[:\\-]\\s*(?P<value>\\d{1,2}(?:\\.\\d+)?)(?:[ \\t]*(?:kg/m(?:2|²)))?"
         }
       ],
       "description": "Explicit BMI value as stated in the document.",
@@ -113,7 +113,7 @@
       "citations_required": true,
       "patterns": [
         {
-          "regex": "(?im)^[ \\t]*(?:Blood Pressure|BP)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}[ \\t]*/[ \\t]*\\d{2,3})(?:[ \\t]*mmHg)?[ \\t]*$"
+          "regex": "(?im)^[ \\t]*(?:Blood Pressure|BP)\\s*[:\\-]\\s*(?P<value>\\d{2,3}[ \\t]*/[ \\t]*\\d{2,3})(?:[ \\t]*mmHg)?[ \\t]*$"
         }
       ],
       "description": "Explicit Blood pressure value as stated in the document.",
@@ -329,7 +329,7 @@
       "citations_required": true,
       "patterns": [
         {
-          "regex": "(?im)^[ \\t]*(?:Fasting Blood Sugar|Fasting Glucose|FBS)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+          "regex": "(?im)^[ \\t]*(?:Fasting Blood Sugar|Fasting Glucose|FBS)[ \\t]*[:\\-]?[ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?"
         }
       ],
       "description": "Explicit Fasting blood sugar value as stated in the document.",
@@ -352,7 +352,7 @@
       "citations_required": true,
       "patterns": [
         {
-          "regex": "(?im)^[ \\t]*(?:HbA1c|A1c)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)[ \\t]*%?(?:[ \\t]+.*)?$"
+          "regex": "(?im)^[ \\t]*(?:HbA1c|A1c)[ \\t]*[:\\-]?[ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)[ \\t]*%?"
         }
       ],
       "description": "Explicit HbA1c value as stated in the document.",

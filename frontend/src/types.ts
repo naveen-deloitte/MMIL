@@ -22,6 +22,51 @@ export interface CaseSummary {
   product_name: string;
   workflow_stage: string;
   sla_label: string;
+  is_demo?: boolean;
+}
+
+export type VarianceDecisionType = "retain_original" | "accept_suggested" | "custom_value" | "refer";
+export type VarianceStatus = "pending" | "resolved" | "referred";
+
+export interface VarianceDecision {
+  id: string;
+  decision: VarianceDecisionType | "reset";
+  selected_value: number | null;
+  justification: string;
+  reviewer_subject: string;
+  approval_status: string;
+  reviewed_at: string;
+}
+
+export interface UnderwritingVariance {
+  id: string;
+  category: string;
+  title: string;
+  applied_value: number;
+  suggested_value: number;
+  difference: number;
+  currency: string;
+  recommendation_source: string;
+  recommendation_rationale: string;
+  status: VarianceStatus;
+  current_decision: VarianceDecision | null;
+  history: VarianceDecision[];
+}
+
+export interface UnderwritingVarianceWorkspace {
+  case: CaseSummary;
+  demo_mode: boolean;
+  variances: UnderwritingVariance[];
+  pending_variances: number;
+  resolved_variances: number;
+  total_variances: number;
+  cases_requiring_decision: number;
+}
+
+export interface UnderwritingVarianceDecisionInput {
+  decision: VarianceDecisionType;
+  selected_value?: number;
+  justification: string;
 }
 
 export interface CaseListItem {
@@ -53,6 +98,11 @@ export interface DocumentSummary {
   created_at: string;
   job_id: string | null;
   attempts: number;
+}
+
+export interface DocumentDeletion {
+  document_id: string;
+  deleted: boolean;
 }
 
 export interface Citation {
@@ -198,6 +248,40 @@ export interface Workspace {
   fields: EvidenceField[];
   additional_facts: AdditionalFact[];
   counts: EvidenceCounts;
+  case_review: CaseReviewSummary;
+}
+
+export interface CaseReviewException {
+  id: string;
+  kind: "field" | "cross_document_conflict" | "document";
+  category: string;
+  title: string;
+  status: "pending" | "resolved" | "advisory";
+  severity: "error" | "warning" | "info";
+  field_ids: string[];
+  document_ids: string[];
+  message: string;
+}
+
+export interface CaseReviewSummary {
+  open_flags: number;
+  documents_analysed: number;
+  cross_document_conflicts: number;
+  resolved_flags: number;
+  processing_documents: number;
+  exceptions: CaseReviewException[];
+}
+
+export interface ExtractionHistoryRun {
+  run: RunSummary;
+  field_count: number;
+  pending_fields: number;
+  reviewed_fields: number;
+}
+
+export interface ExtractionHistory {
+  document: DocumentSummary;
+  runs: ExtractionHistoryRun[];
 }
 
 export interface AuditEvent {

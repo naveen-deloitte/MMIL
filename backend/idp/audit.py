@@ -18,6 +18,7 @@ _ALLOWED_METADATA_KEYS = {
     "page_count",
     "provider",
     "reason",
+    "approval_status",
     "attempt",
     "result_count",
     "additional_fact_count",

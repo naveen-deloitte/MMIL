@@ -483,7 +483,16 @@ class ProcessingService:
 
     def _record_failure(self, job_id: str, error: ProcessingError, *, stage: str) -> None:
         with self.database.session() as session:
-            job, document = self._load_job_document(session, job_id)
+            try:
+                job, document = self._load_job_document(session, job_id)
+            except ProcessingError as exc:
+                if exc.code in {"job_missing", "document_missing"}:
+                    logger.info(
+                        "Processing result discarded because its document was removed job_id=%s",
+                        job_id,
+                    )
+                    return
+                raise
             current = job.status
             if current not in {"scanning", "ocr", "extracting"}:
                 return
@@ -548,6 +557,32 @@ def retry_document(
         )
     if job.status != "failed":
         run = session.get(ExtractionRun, document.latest_run_id)
+        if (
+            document.status in {"review_required", "completed"}
+            and run is not None
+            and run.provider == "deterministic-local"
+        ):
+            new_job = ProcessingJob(
+                document_id=document.id,
+                max_attempts=job.max_attempts,
+                correlation_id=correlation_id,
+            )
+            document.status = "uploaded"
+            document.failure_code = None
+            session.add(new_job)
+            session.flush()
+            append_audit(
+                session,
+                tenant_id=document.tenant_id,
+                case_id=document.case_id,
+                document_id=document.id,
+                actor_subject=actor_subject,
+                action="document.local_extraction_retry_requested",
+                outcome="success",
+                correlation_id=correlation_id,
+                metadata={"reason": "manual_local_reprocess"},
+            )
+            return new_job
         analysis = run.ai_analysis_json if run is not None else None
         summary_missing = not isinstance(analysis, dict) or not analysis.get("summary")
         if (

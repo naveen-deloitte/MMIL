@@ -4,24 +4,34 @@ from collections.abc import Generator
 
 from fastapi import APIRouter, Depends, File, Form, Header, Query, Request, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from idp.audit import append_audit
 from idp.auth import Principal
-from idp.errors import AppError
-from idp.models import Case, Document
+from idp.errors import AppError, ProcessingError
+from idp.models import (
+    Case,
+    Document,
+    UnderwritingVariance,
+    UnderwritingVarianceDecision,
+)
 from idp.schemas import (
     AuditPage,
     CaseCreateIn,
     CaseListItem,
     CaseSummary,
+    DocumentDeletionOut,
     DocumentSummary,
     EvidenceOut,
+    ExtractionHistoryOut,
     ExtractionOut,
     HealthOut,
     ReviewRequest,
     ReviewResponse,
+    UnderwritingVarianceDecisionIn,
+    UnderwritingVarianceOut,
+    UnderwritingVarianceWorkspaceOut,
     UploadOut,
     WorkspaceOut,
 )
@@ -32,6 +42,7 @@ from idp.services.workspace import (
     audit_page,
     build_workspace,
     document_summary,
+    extraction_history,
     latest_extraction,
 )
 
@@ -55,9 +66,13 @@ def get_principal(request: Request) -> Principal:
 
 
 def get_document(session: Session, *, principal: Principal, document_id: str) -> Document:
-    query = select(Document).join(Case, Case.id == Document.case_id).where(
-        Document.id == document_id,
-        Document.tenant_id == principal.tenant_id,
+    query = (
+        select(Document)
+        .join(Case, Case.id == Document.case_id)
+        .where(
+            Document.id == document_id,
+            Document.tenant_id == principal.tenant_id,
+        )
     )
     if "*" not in principal.case_ids:
         case_access = [Case.external_case_id.in_(principal.case_ids)]
@@ -72,16 +87,110 @@ def get_document(session: Session, *, principal: Principal, document_id: str) ->
     return document
 
 
-def require_case_access(
-    session: Session, *, principal: Principal, external_case_id: str
-) -> Case:
-    case = find_case(
-        session, tenant_id=principal.tenant_id, external_case_id=external_case_id
-    )
+def require_case_access(session: Session, *, principal: Principal, external_case_id: str) -> Case:
+    case = find_case(session, tenant_id=principal.tenant_id, external_case_id=external_case_id)
+    if case.is_demo:
+        if principal.is_demo:
+            return case
+        raise AppError(404, "case_not_found", "Case not found", "The case was not found.")
     if principal.is_demo and case.created_by == principal.subject:
         return case
     principal.require_case(external_case_id)
     return case
+
+
+def get_case_variance(
+    session: Session,
+    *,
+    case: Case,
+    tenant_id: str,
+    variance_id: str,
+) -> UnderwritingVariance:
+    variance = session.scalar(
+        select(UnderwritingVariance).where(
+            UnderwritingVariance.id == variance_id,
+            UnderwritingVariance.case_id == case.id,
+            UnderwritingVariance.tenant_id == tenant_id,
+        )
+    )
+    if variance is None:
+        raise AppError(
+            404,
+            "underwriting_variance_not_found",
+            "Variance not found",
+            "The underwriting variance was not found.",
+        )
+    return variance
+
+
+def build_variance_workspace(
+    session: Session,
+    *,
+    case: Case,
+    tenant_id: str,
+) -> UnderwritingVarianceWorkspaceOut:
+    variances = list(
+        session.scalars(
+            select(UnderwritingVariance)
+            .where(
+                UnderwritingVariance.case_id == case.id,
+                UnderwritingVariance.tenant_id == tenant_id,
+            )
+            .order_by(UnderwritingVariance.created_at, UnderwritingVariance.id)
+        )
+    )
+    result: list[UnderwritingVarianceOut] = []
+    for variance in variances:
+        history = list(
+            session.scalars(
+                select(UnderwritingVarianceDecision)
+                .where(
+                    UnderwritingVarianceDecision.variance_id == variance.id,
+                    UnderwritingVarianceDecision.tenant_id == tenant_id,
+                )
+                .order_by(
+                    UnderwritingVarianceDecision.reviewed_at,
+                    UnderwritingVarianceDecision.id,
+                )
+            )
+        )
+        current = next((decision for decision in history if decision.is_current), None)
+        status = (
+            "pending"
+            if current is None
+            else "referred"
+            if current.decision == "refer"
+            else "resolved"
+        )
+        result.append(
+            UnderwritingVarianceOut(
+                id=variance.id,
+                category=variance.category,
+                title=variance.title,
+                applied_value=variance.applied_value,
+                suggested_value=variance.suggested_value,
+                difference=variance.suggested_value - variance.applied_value,
+                currency=variance.currency,
+                recommendation_source=variance.recommendation_source,
+                recommendation_rationale=variance.recommendation_rationale,
+                status=status,
+                current_decision=current,
+                history=history,
+            )
+        )
+
+    pending_count = sum(item.status == "pending" for item in result)
+    resolved_count = sum(item.status == "resolved" for item in result)
+    requires_decision = any(item.status in {"pending", "referred"} for item in result)
+    return UnderwritingVarianceWorkspaceOut(
+        case=CaseSummary.model_validate(case),
+        demo_mode=case.is_demo,
+        variances=result,
+        pending_variances=pending_count,
+        resolved_variances=resolved_count,
+        total_variances=len(result),
+        cases_requiring_decision=int(requires_decision),
+    )
 
 
 @router.get("/health/live", response_model=HealthOut, tags=["health"])
@@ -110,7 +219,7 @@ def list_cases(
     query = (
         select(Case, func.count(Document.id), func.max(Document.updated_at))
         .outerjoin(Document, Document.case_id == Case.id)
-        .where(Case.tenant_id == principal.tenant_id)
+        .where(Case.tenant_id == principal.tenant_id, Case.is_demo.is_(False))
         .group_by(Case.id)
     )
     if "*" not in principal.case_ids:
@@ -164,6 +273,7 @@ def create_case(
         proposal_number=payload.proposal_number,
         product_name=payload.product_name,
         created_by=principal.subject,
+        is_demo=False,
         workflow_stage=payload.workflow_stage,
         sla_label=payload.sla_label,
     )
@@ -191,6 +301,153 @@ def workspace(
     principal.require("view")
     require_case_access(session, principal=principal, external_case_id=case_id)
     return build_workspace(session, tenant_id=principal.tenant_id, external_case_id=case_id)
+
+
+@router.get(
+    "/cases/{case_id}/underwriting-variances",
+    response_model=UnderwritingVarianceWorkspaceOut,
+    tags=["underwriting"],
+)
+def underwriting_variances(
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> UnderwritingVarianceWorkspaceOut:
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    return build_variance_workspace(session, case=case, tenant_id=principal.tenant_id)
+
+
+@router.post(
+    "/cases/{case_id}/underwriting-variances/{variance_id}/decisions",
+    response_model=UnderwritingVarianceWorkspaceOut,
+    tags=["underwriting"],
+)
+def record_underwriting_variance_decision(
+    request: Request,
+    case_id: str,
+    variance_id: str,
+    payload: UnderwritingVarianceDecisionIn,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> UnderwritingVarianceWorkspaceOut:
+    principal.require("review")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    variance = get_case_variance(
+        session, case=case, tenant_id=principal.tenant_id, variance_id=variance_id
+    )
+    if not case.is_demo:
+        raise AppError(
+            409,
+            "variance_decisions_not_configured",
+            "Variance decisions unavailable",
+            "This case has no connected recommendation and decision service.",
+        )
+    active_decision = session.scalar(
+        select(UnderwritingVarianceDecision.id).where(
+            UnderwritingVarianceDecision.tenant_id == principal.tenant_id,
+            UnderwritingVarianceDecision.variance_id == variance.id,
+            UnderwritingVarianceDecision.is_current.is_(True),
+        )
+    )
+    if active_decision is not None:
+        raise AppError(
+            409,
+            "variance_already_reviewed",
+            "Variance already reviewed",
+            "Reset the demo case before recording another decision.",
+        )
+
+    selected_value = {
+        "retain_original": variance.applied_value,
+        "accept_suggested": variance.suggested_value,
+        "custom_value": payload.selected_value,
+        "refer": None,
+    }[payload.decision]
+    decision = UnderwritingVarianceDecision(
+        tenant_id=principal.tenant_id,
+        case_id=case.id,
+        variance_id=variance.id,
+        decision=payload.decision,
+        selected_value=selected_value,
+        justification=payload.justification,
+        reviewer_subject=principal.subject,
+        approval_status="demo_only",
+        is_current=True,
+    )
+    session.add(decision)
+    append_audit(
+        session,
+        tenant_id=principal.tenant_id,
+        case_id=case.id,
+        actor_subject=principal.subject,
+        action="underwriting.variance_decision_recorded",
+        outcome="success",
+        correlation_id=request.state.correlation_id,
+        metadata={"decision": payload.decision, "approval_status": "demo_only"},
+    )
+    session.flush()
+    return build_variance_workspace(session, case=case, tenant_id=principal.tenant_id)
+
+
+@router.post(
+    "/cases/{case_id}/underwriting-variances/demo-reset",
+    response_model=UnderwritingVarianceWorkspaceOut,
+    tags=["underwriting"],
+)
+def reset_demo_underwriting_variance(
+    request: Request,
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> UnderwritingVarianceWorkspaceOut:
+    principal.require("review")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    if not case.is_demo:
+        raise AppError(404, "case_not_found", "Case not found", "The case was not found.")
+
+    variances = list(
+        session.scalars(
+            select(UnderwritingVariance).where(
+                UnderwritingVariance.tenant_id == principal.tenant_id,
+                UnderwritingVariance.case_id == case.id,
+            )
+        )
+    )
+    for variance in variances:
+        for decision in session.scalars(
+            select(UnderwritingVarianceDecision).where(
+                UnderwritingVarianceDecision.tenant_id == principal.tenant_id,
+                UnderwritingVarianceDecision.variance_id == variance.id,
+                UnderwritingVarianceDecision.is_current.is_(True),
+            )
+        ):
+            decision.is_current = False
+        session.add(
+            UnderwritingVarianceDecision(
+                tenant_id=principal.tenant_id,
+                case_id=case.id,
+                variance_id=variance.id,
+                decision="reset",
+                selected_value=None,
+                justification="Demo state reset for another presentation.",
+                reviewer_subject=principal.subject,
+                approval_status="not_applicable",
+                is_current=False,
+            )
+        )
+    append_audit(
+        session,
+        tenant_id=principal.tenant_id,
+        case_id=case.id,
+        actor_subject=principal.subject,
+        action="underwriting.variance_demo_reset",
+        outcome="success",
+        correlation_id=request.state.correlation_id,
+        metadata={"decision": "reset"},
+    )
+    session.flush()
+    return build_variance_workspace(session, case=case, tenant_id=principal.tenant_id)
 
 
 @router.post(
@@ -243,6 +500,46 @@ def document_metadata(
     return document_summary(session, document)
 
 
+@router.delete(
+    "/documents/{document_id}",
+    response_model=DocumentDeletionOut,
+    tags=["documents"],
+)
+def remove_document(
+    request: Request,
+    document_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> DocumentDeletionOut:
+    principal.require("upload")
+    document = get_document(session, principal=principal, document_id=document_id)
+    object_key = document.object_key
+    append_audit(
+        session,
+        tenant_id=document.tenant_id,
+        case_id=document.case_id,
+        document_id=document.id,
+        actor_subject=principal.subject,
+        action="document.deleted",
+        outcome="success",
+        correlation_id=request.state.correlation_id,
+        metadata={"reason": "user_requested"},
+    )
+    session.execute(delete(Document).where(Document.id == document.id))
+    session.flush()
+    try:
+        request.app.state.object_store.delete(object_key)
+    except ProcessingError as exc:
+        raise AppError(
+            503,
+            "document_deletion_failed",
+            "Document removal failed",
+            "The document source could not be removed. No case records were deleted.",
+        ) from exc
+    session.commit()
+    return DocumentDeletionOut(document_id=document_id, deleted=True)
+
+
 @router.get("/documents/{document_id}/content", tags=["documents"])
 def document_content(
     request: Request,
@@ -260,9 +557,7 @@ def document_content(
             "The document cannot be viewed until scanning completes.",
         )
     try:
-        path = request.app.state.object_store.verify_sha256(
-            document.object_key, document.sha256
-        )
+        path = request.app.state.object_store.verify_sha256(document.object_key, document.sha256)
     except Exception as exc:
         raise AppError(
             404,
@@ -287,8 +582,7 @@ def document_content(
         "X-Content-Type-Options": "nosniff",
         "Cross-Origin-Resource-Policy": "same-origin",
         "Content-Security-Policy": (
-            "default-src 'none'; frame-ancestors 'self'; base-uri 'none'; "
-            "form-action 'none'"
+            "default-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'"
         ),
     }
     return FileResponse(
@@ -316,6 +610,21 @@ def retry(
         correlation_id=request.state.correlation_id,
     )
     return document_summary(session, document)
+
+
+@router.get(
+    "/documents/{document_id}/extractions/history",
+    response_model=ExtractionHistoryOut,
+    tags=["medical evidence"],
+)
+def extraction_history_latest(
+    document_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> ExtractionHistoryOut:
+    principal.require("view")
+    document = get_document(session, principal=principal, document_id=document_id)
+    return extraction_history(session, tenant_id=principal.tenant_id, document=document)
 
 
 @router.get(
@@ -414,9 +723,7 @@ def audit(
     session: Session = Depends(get_session),
 ) -> AuditPage:
     principal.require("audit")
-    case = require_case_access(
-        session, principal=principal, external_case_id=case_id
-    )
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
     result = audit_page(
         session,
         tenant_id=principal.tenant_id,

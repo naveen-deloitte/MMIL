@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ApiModel(BaseModel):
@@ -27,6 +27,64 @@ class CaseSummary(ApiModel):
     product_name: str
     workflow_stage: str
     sla_label: str
+    is_demo: bool = False
+
+
+class UnderwritingVarianceDecisionIn(BaseModel):
+    decision: Literal["retain_original", "accept_suggested", "custom_value", "refer"]
+    selected_value: int | None = Field(default=None, ge=1, le=1_000_000_000)
+    justification: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("justification")
+    @classmethod
+    def require_nonblank_justification(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("A decision justification is required.")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_selected_value(self) -> UnderwritingVarianceDecisionIn:
+        if self.decision == "custom_value" and self.selected_value is None:
+            raise ValueError("A custom selected value is required.")
+        if self.decision != "custom_value" and self.selected_value is not None:
+            raise ValueError("A selected value is only allowed for a custom decision.")
+        return self
+
+
+class UnderwritingVarianceDecisionOut(ApiModel):
+    id: str
+    decision: Literal["retain_original", "accept_suggested", "custom_value", "refer", "reset"]
+    selected_value: int | None
+    justification: str
+    reviewer_subject: str
+    approval_status: str
+    reviewed_at: datetime
+
+
+class UnderwritingVarianceOut(ApiModel):
+    id: str
+    category: str
+    title: str
+    applied_value: int
+    suggested_value: int
+    difference: int
+    currency: str
+    recommendation_source: str
+    recommendation_rationale: str
+    status: Literal["pending", "resolved", "referred"]
+    current_decision: UnderwritingVarianceDecisionOut | None
+    history: list[UnderwritingVarianceDecisionOut] = Field(default_factory=list)
+
+
+class UnderwritingVarianceWorkspaceOut(BaseModel):
+    case: CaseSummary
+    demo_mode: bool
+    variances: list[UnderwritingVarianceOut]
+    pending_variances: int
+    resolved_variances: int
+    total_variances: int
+    cases_requiring_decision: int
 
 
 class CaseCreateIn(BaseModel):
@@ -79,6 +137,11 @@ class DocumentSummary(ApiModel):
     created_at: datetime
     job_id: str | None = None
     attempts: int = 0
+
+
+class DocumentDeletionOut(BaseModel):
+    document_id: str
+    deleted: bool
 
 
 class CitationOut(ApiModel):
@@ -210,11 +273,44 @@ class EvidenceCounts(ApiModel):
     not_applicable: int = 0
 
 
+class CaseReviewExceptionOut(BaseModel):
+    id: str
+    kind: Literal["field", "cross_document_conflict", "document"]
+    category: str
+    title: str
+    status: Literal["pending", "resolved", "advisory"]
+    severity: Literal["error", "warning", "info"]
+    field_ids: list[str] = Field(default_factory=list)
+    document_ids: list[str] = Field(default_factory=list)
+    message: str
+
+
+class CaseReviewSummaryOut(BaseModel):
+    open_flags: int = 0
+    documents_analysed: int = 0
+    cross_document_conflicts: int = 0
+    resolved_flags: int = 0
+    processing_documents: int = 0
+    exceptions: list[CaseReviewExceptionOut] = Field(default_factory=list)
+
+
 class ExtractionOut(ApiModel):
     document: DocumentSummary
     run: RunSummary | None
     fields: list[FieldOut]
     additional_facts: list[AdditionalFactOut] = Field(default_factory=list)
+
+
+class ExtractionHistoryRunOut(BaseModel):
+    run: RunSummary
+    field_count: int
+    pending_fields: int
+    reviewed_fields: int
+
+
+class ExtractionHistoryOut(BaseModel):
+    document: DocumentSummary
+    runs: list[ExtractionHistoryRunOut] = Field(default_factory=list)
 
 
 class EvidenceOut(ApiModel):
@@ -229,6 +325,7 @@ class WorkspaceOut(ApiModel):
     fields: list[FieldOut]
     additional_facts: list[AdditionalFactOut] = Field(default_factory=list)
     counts: EvidenceCounts
+    case_review: CaseReviewSummaryOut
 
 
 class UploadOut(ApiModel):

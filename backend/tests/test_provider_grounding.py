@@ -89,6 +89,62 @@ def test_primary_vitals_extract_explicit_blood_pressure_pulse_rr_and_temperature
         assert by_path[path].citations[0].excerpt == excerpt
 
 
+def test_blood_pressure_extracts_when_value_is_on_line_after_label() -> None:
+    registry = DocumentTypeRegistry.load(
+        ROOT / "config" / "document-types" / "medical-report.v1.json"
+    )
+    page = PageText(
+        page_number=1,
+        text="Blood Pressure\n: 128/82 mmHg",
+        width=100,
+        height=100,
+    )
+
+    candidates = SchemaExtractor(registry.definition).extract(
+        document_id="doc-1",
+        document_version=1,
+        pages=[page],
+    )
+
+    blood_pressure = next(
+        item for item in candidates if item.field_path == "observations.blood_pressure"
+    )
+    assert blood_pressure.source_literal == "128/82"
+    assert blood_pressure.citations[0].excerpt == "Blood Pressure\n: 128/82 mmHg"
+
+
+def test_medical_schema_extracts_wrapped_bmi_and_unpunctuated_lab_rows() -> None:
+    registry = DocumentTypeRegistry.load(
+        ROOT / "config" / "document-types" / "medical-report.v1.json"
+    )
+    page = PageText(
+        page_number=1,
+        text=(
+            "BMI\n: 26.1 kg/m2\n"
+            "Fasting Blood Sugar 96 mg/dL - Reference range 70-110\n"
+            "HbA1c 5.4 % Reference range 4.0-5.6"
+        ),
+        width=100,
+        height=100,
+    )
+
+    candidates = SchemaExtractor(registry.definition).extract(
+        document_id="doc-1",
+        document_version=1,
+        pages=[page],
+    )
+
+    by_path = {candidate.field_path: candidate for candidate in candidates}
+    expected = {
+        "observations.bmi": (26.1, "BMI\n: 26.1 kg/m2"),
+        "labs.fasting_glucose": (96, "Fasting Blood Sugar 96 mg/dL"),
+        "labs.hba1c": (5.4, "HbA1c 5.4 %"),
+    }
+    for path, (value, excerpt) in expected.items():
+        assert by_path[path].normalized_value == value
+        assert by_path[path].citations[0].excerpt == excerpt
+
+
 def test_provider_value_overrides_regex_value_and_keeps_model_confidence_and_citation() -> None:
     registry = DocumentTypeRegistry.load(
         ROOT / "config" / "document-types" / "medical-report.v1.json"

@@ -16,7 +16,7 @@ from idp import __version__
 from idp.api.routes import router
 from idp.auth import Authenticator
 from idp.config import Settings, get_settings
-from idp.database import Database, seed_demo_case
+from idp.database import Database, seed_demo_case, seed_demo_variance_case
 from idp.document_types import DocumentTypeRegistry
 from idp.errors import AppError
 from idp.storage import LocalObjectStore
@@ -41,6 +41,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database.create_schema()
         if resolved_settings.seed_demo_case:
             seed_demo_case(database, resolved_settings)
+            if resolved_settings.auth_mode == "demo":
+                seed_demo_variance_case(database, resolved_settings)
         yield
         database.dispose()
 

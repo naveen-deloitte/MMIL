@@ -86,7 +86,53 @@ const workspace: Workspace = {
     rejected: 0,
     not_applicable: 0,
   },
+  case_review: {
+    open_flags: 1,
+    documents_analysed: 1,
+    cross_document_conflicts: 0,
+    resolved_flags: 0,
+    processing_documents: 0,
+    exceptions: [{
+      id: "field:field-tobacco",
+      kind: "field",
+      category: "Review required",
+      title: "Tobacco requires review",
+      status: "pending",
+      severity: "warning",
+      field_ids: ["field-tobacco"],
+      document_ids: ["doc-1"],
+      message: "The extraction pipeline marked Tobacco for human review.",
+    }],
+  },
 };
+
+function workspaceResponse(input: RequestInfo | URL, value: Workspace): Response {
+  const url = String(input);
+  if (url.includes("/extractions/history")) {
+    const encodedId = url.match(/\/documents\/([^/]+)\/extractions\/history/)?.[1];
+    const documentId = encodedId ? decodeURIComponent(encodedId) : "";
+    const document = value.documents.find((item) => item.id === documentId);
+    return new Response(JSON.stringify({
+      document,
+      runs: value.runs
+        .filter((run) => run.document_id === documentId)
+        .map((run) => ({
+          run,
+          field_count: value.fields.filter((field) => field.run_id === run.id).length,
+          pending_fields: value.fields.filter((field) => field.run_id === run.id && field.review_state === "pending").length,
+          reviewed_fields: value.fields.filter((field) => field.run_id === run.id && field.latest_review !== null).length,
+        })),
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+  return new Response(JSON.stringify(value), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function stubWorkspaceFetch(value: Workspace = workspace) {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => workspaceResponse(input, value)));
+}
 
 beforeEach(() => window.history.replaceState({}, "", "/?case=Dummy-Dummy-29495"));
 afterEach(() => {
@@ -106,23 +152,26 @@ describe("focused workbench", () => {
           last_activity_at: "2026-08-14T10:00:02Z",
         }]), { status: 200, headers: { "Content-Type": "application/json" } });
       }
-      return new Response(JSON.stringify(workspace), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return workspaceResponse(input, workspace);
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Cases" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Underwriting Workbench" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Underwriting Queue" })).toBeInTheDocument();
+    const workloadKpis = screen.getByRole("region", { name: "Underwriting workload summary" });
+    expect(within(workloadKpis).getAllByText("1")).toHaveLength(3);
+    expect(within(workloadKpis).getByText("0")).toBeInTheDocument();
+    expect(screen.getByText("human review")).toBeInTheDocument();
+    expect(screen.queryByText("Cases by stage")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open case" }));
 
     expect(await screen.findByRole("heading", { name: /Dummy - Dummy/ })).toBeInTheDocument();
     expect(window.location.search).toContain("case=Dummy-Dummy-29495");
-    expect(screen.getByRole("button", { name: "Audit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Underwriting Assessment" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Manage documents 1" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "AI Assessment" }));
+    await user.click(screen.getByRole("button", { name: "Document Review" }));
     expect(screen.getByRole("button", { name: /AI Summary/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vitals" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lab Reports" })).toBeInTheDocument();
@@ -173,15 +222,13 @@ describe("focused workbench", () => {
           headers: { "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify(newWorkspace), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return workspaceResponse(input, newWorkspace);
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     render(<App />);
 
+    expect(await screen.findByText("No cases in this workspace yet")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Create new case" }));
     await user.type(screen.getByLabelText("Case ID"), "UW-2027-001234");
     await user.type(screen.getByLabelText("Applicant name"), "Synthetic Applicant");
@@ -197,16 +244,176 @@ describe("focused workbench", () => {
     );
   });
 
-  it("loads the one medical page and opens citation source beside evidence", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(workspace), {
-      status: 200,
+  it("filters and clears the underwriting queue without changing case data", async () => {
+    window.history.replaceState({}, "", "/");
+    const secondCase = {
+      ...workspace.case,
+      id: "case-second",
+      external_case_id: "UW-002",
+      applicant_display_name: "Priya Example",
+      proposal_number: "PROP-002",
+      workflow_stage: "awaiting_documents",
+      sla_label: "1d left",
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([
+      { case: workspace.case, document_count: 0, last_activity_at: "2026-08-14T10:00:02Z" },
+      { case: secondCase, document_count: 0, last_activity_at: "2026-08-14T10:00:02Z" },
+    ]), { status: 200, headers: { "Content-Type": "application/json" } })));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText("Priya Example");
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+
+    await user.type(screen.getByRole("textbox", { name: "Search applicant, case ID, or proposal number" }), "UW-002");
+    expect(within(table).getAllByRole("row")).toHaveLength(2);
+    expect(within(table).getByText("Priya Example")).toBeInTheDocument();
+    expect(within(table).queryByText("Dummy - Dummy")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getByText("Dummy - Dummy")).toBeInTheDocument();
+  });
+
+  it("keeps the case-list error and retry action visible when loading fails", async () => {
+    window.history.replaceState({}, "", "/");
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ detail: "Service unavailable" }), {
+      status: 503,
       headers: { "Content-Type": "application/json" },
-    })));
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  });
+
+  it("opens the isolated demo case and records a variance decision", async () => {
+    window.history.replaceState({}, "", "/");
+    const demoCase = {
+      ...workspace.case,
+      id: "demo-case-id",
+      external_case_id: "MMIL-DEMO-001",
+      applicant_display_name: "Ananya Sharma",
+      proposal_number: "MMIL-DEMO-001",
+      product_name: "Individual Life Insurance",
+      workflow_stage: "underwriting_variance_review",
+      sla_label: "Demo only — not an SLA",
+      is_demo: true,
+    };
+    const demoWorkspace: Workspace = {
+      ...workspace,
+      case: demoCase,
+      documents: [],
+      runs: [],
+      fields: [],
+      additional_facts: [],
+      counts: {
+        found: 0,
+        uncertain: 0,
+        not_found: 0,
+        pending: 0,
+        accepted: 0,
+        corrected: 0,
+        rejected: 0,
+        not_applicable: 0,
+      },
+    };
+    const variance = {
+      id: "variance-1",
+      category: "premium",
+      title: "Premium Variance",
+      applied_value: 50000,
+      suggested_value: 60000,
+      difference: 10000,
+      currency: "INR",
+      recommendation_source: "DEMO – Simulated Approved Pricing Recommendation",
+      recommendation_rationale: "Simulated recommendation for the demo only.",
+      status: "pending",
+      current_decision: null,
+      history: [],
+    };
+    const initialVarianceWorkspace = {
+      case: demoCase,
+      demo_mode: true,
+      variances: [variance],
+      pending_variances: 1,
+      resolved_variances: 0,
+      total_variances: 1,
+      cases_requiring_decision: 1,
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/v1/cases") {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url === "/api/v1/cases/MMIL-DEMO-001/workspace") {
+        return workspaceResponse(url, demoWorkspace);
+      }
+      if (url === "/api/v1/cases/MMIL-DEMO-001/underwriting-variances") {
+        return new Response(JSON.stringify(initialVarianceWorkspace), { status: 200 });
+      }
+      if (url.endsWith("/decisions") && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body));
+        const decision = {
+          id: "decision-1",
+          decision: payload.decision,
+          selected_value: 60000,
+          justification: payload.justification,
+          reviewer_subject: "reviewer-demo",
+          approval_status: "demo_only",
+          reviewed_at: "2026-11-26T05:30:00Z",
+        };
+        return new Response(JSON.stringify({
+          ...initialVarianceWorkspace,
+          variances: [{ ...variance, status: "resolved", current_decision: decision, history: [decision] }],
+          pending_variances: 0,
+          resolved_variances: 1,
+          cases_requiring_decision: 0,
+        }), { status: 200 });
+      }
+      return workspaceResponse(input, demoWorkspace);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    const demoRow = await screen.findByRole("row", { name: /Ananya Sharma/ });
+    expect(within(demoRow).getByText("Demo · simulated")).toBeInTheDocument();
+    expect(within(demoRow).getByText("MMIL-DEMO-001")).toBeInTheDocument();
+    const workloadKpis = screen.getByRole("region", { name: "Underwriting workload summary" });
+    expect(within(workloadKpis).getAllByText("0")).toHaveLength(4);
+    await user.click(within(demoRow).getByRole("button", {
+      name: "Open demo case MMIL-DEMO-001",
+    }));
+    expect(await screen.findByRole("heading", { name: "Ananya Sharma" })).toBeInTheDocument();
+    expect(screen.getByText("DEMO · SIMULATED DATA")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Underwriting Variance Review" }));
+    expect(await screen.findByRole("heading", { name: "Premium Variance" })).toBeInTheDocument();
+    expect(screen.getByText("+₹10,000")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: /Accept suggested/ }));
+    await user.type(screen.getByLabelText(/Decision justification/), "Accept for client demo.");
+    await user.click(screen.getByRole("button", { name: "Submit decision" }));
+
+    expect(await screen.findByText("Suggested value accepted")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/cases/MMIL-DEMO-001/underwriting-variances/variance-1/decisions",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(screen.getByText(/does not change the original application/)).toBeInTheDocument();
+  });
+
+  it("loads the one medical page and opens citation source beside evidence", async () => {
+    stubWorkspaceFetch();
     const user = userEvent.setup();
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: /Dummy - Dummy/ })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "AI Assessment" }));
+    await user.click(screen.getByRole("button", { name: "Document Review" }));
     expect(screen.getByText(/Dummy-Dummy-29495/)).toBeInTheDocument();
     expect(screen.queryByText("Run simulation")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Page 1 source" }));
@@ -239,44 +446,93 @@ describe("focused workbench", () => {
         not_applicable: 0,
       },
     };
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(emptyWorkspace), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })));
+    stubWorkspaceFetch(emptyWorkspace);
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "AI Assessment" }));
-    expect(await screen.findByRole("heading", { name: "AI Medical Assessment Summary" })).toBeInTheDocument();
-    expect(screen.getByText("No additional summary fields were extracted from this report.")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Document Review" }));
+    expect(await screen.findByText("No documents uploaded")).toBeInTheDocument();
     expect(screen.queryByText("26.1")).not.toBeInTheDocument();
     const caseHeader = screen.getByRole("region", { name: /Dummy - Dummy/ });
     await user.click(within(caseHeader).getByRole("button", { name: "View source" }));
     expect(screen.getByText("Upload a document before opening the source viewer.")).toBeInTheDocument();
   });
 
-  it("opens the HITL review queue in a drawer and omits the removed header labels", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(workspace), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })));
+  it("shows case-level HITL exceptions and opens the existing auditable review dialog", async () => {
+    stubWorkspaceFetch();
     const user = userEvent.setup();
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: /Dummy - Dummy/ })).toBeInTheDocument();
     expect(screen.queryByText("Illustrative case data · no live systems")).not.toBeInTheDocument();
     expect(screen.queryByText(/Signed in as/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /HITL review/ }));
+    await user.click(screen.getByRole("button", { name: "HITL Review" }));
 
-    const reviewDrawer = screen.getByRole("dialog", { name: "Evidence review" });
-    expect(within(reviewDrawer).getByText("Critical · needs review")).toBeInTheDocument();
-    expect(within(reviewDrawer).getByRole("heading", { name: /^Advisory notes/ })).toBeInTheDocument();
-    expect(within(reviewDrawer).getByText("Tobacco")).toBeInTheDocument();
-    await user.click(within(reviewDrawer).getByRole("button", { name: /Tobacco/ }));
+    expect(screen.getByText("Tobacco requires review")).toBeInTheDocument();
+    expect(screen.getByText("1 open flags")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review field" }));
     const fieldDrawer = await screen.findByRole("dialog", { name: "Tobacco" });
     expect(within(fieldDrawer).getByText("Candidate value")).toBeInTheDocument();
     await user.click(within(fieldDrawer).getByRole("button", { name: "Close review" }));
-    expect(screen.queryByRole("dialog", { name: "Evidence review" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Tobacco" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Request requirements" }));
+    expect(screen.getByRole("dialog", { name: "Evidence review" })).toBeInTheDocument();
+  });
+
+  it("requires confirmation and permanently removes a document from the active case", async () => {
+    const emptyWorkspace: Workspace = {
+      ...workspace,
+      documents: [],
+      runs: [],
+      fields: [],
+      additional_facts: [],
+      counts: {
+        found: 0,
+        uncertain: 0,
+        not_found: 0,
+        pending: 0,
+        accepted: 0,
+        corrected: 0,
+        rejected: 0,
+        not_applicable: 0,
+      },
+      case_review: {
+        open_flags: 0,
+        documents_analysed: 0,
+        cross_document_conflicts: 0,
+        resolved_flags: 0,
+        processing_documents: 0,
+        exceptions: [],
+      },
+    };
+    let removed = false;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "DELETE") {
+        removed = true;
+        return new Response(JSON.stringify({ document_id: "doc-1", deleted: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return workspaceResponse(input, removed ? emptyWorkspace : workspace);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Remove document" }));
+    const confirmation = screen.getByRole("alertdialog", { name: /Remove synthetic-report\.pdf/ });
+    expect(within(confirmation).getByText(/permanently deletes the original file/i)).toBeInTheDocument();
+    await user.click(within(confirmation).getByRole("button", { name: "Permanently remove" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/documents/doc-1",
+      expect.objectContaining({ method: "DELETE" }),
+    ));
+    expect(await screen.findByText("No documents uploaded")).toBeInTheDocument();
+    expect(screen.getByText(/synthetic-report\.pdf and its extracted evidence were permanently removed/)).toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("shows a loading state in the source drawer while the document is queued", async () => {
@@ -284,10 +540,7 @@ describe("focused workbench", () => {
       ...workspace,
       documents: [{ ...workspace.documents[0], status: "scanning", viewable: false }],
     };
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(queuedWorkspace), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })));
+    stubWorkspaceFetch(queuedWorkspace);
     const user = userEvent.setup();
     render(<App />);
 
@@ -308,10 +561,7 @@ describe("focused workbench", () => {
         viewable: false,
       }],
     };
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(failedWorkspace), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })));
+    stubWorkspaceFetch(failedWorkspace);
     const user = userEvent.setup();
     render(<App />);
 
@@ -335,7 +585,7 @@ describe("focused workbench", () => {
       documents: [uploadedDocument, ...workspace.documents],
     };
     let uploaded = false;
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "POST") {
         uploaded = true;
         return new Response(JSON.stringify({ document: uploadedDocument, replayed: false }), {
@@ -343,10 +593,7 @@ describe("focused workbench", () => {
           headers: { "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify(uploaded ? updatedWorkspace : workspace), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return workspaceResponse(input, uploaded ? updatedWorkspace : workspace);
     });
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(<App />);
@@ -412,7 +659,7 @@ describe("focused workbench", () => {
       additional_facts: [],
     };
     let uploadedType: string | null = null;
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "POST") {
         uploadedType = (init.body as FormData).get("document_type") as string;
         return new Response(JSON.stringify({ document: kycDocument, replayed: false }), {
@@ -420,10 +667,7 @@ describe("focused workbench", () => {
           headers: { "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify(uploadedType ? kycWorkspace : workspace), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return workspaceResponse(input, uploadedType ? kycWorkspace : workspace);
     });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -474,14 +718,11 @@ describe("focused workbench", () => {
         linked_field_path: null,
       }],
     };
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(workspaceWithFact), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    })));
+    stubWorkspaceFetch(workspaceWithFact);
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "AI Assessment" }));
+    await user.click(await screen.findByRole("button", { name: "Document Review" }));
     await user.click(screen.getByRole("button", { name: "AI Selected Facts" }));
 
     expect(screen.getByText("Additional medical note")).toBeInTheDocument();
@@ -490,7 +731,7 @@ describe("focused workbench", () => {
     expect(screen.getByRole("button", { name: "Page 2 source" })).toBeInTheDocument();
   });
 
-  it("provides the full underwriting section navigation and reference overview cards", async () => {
+  it("provides the four case sections and nests underwriting tools in the assessment area", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url === "/api/v1/cases") {
@@ -499,25 +740,28 @@ describe("focused workbench", () => {
       if (url.includes("/audit")) {
         return new Response(JSON.stringify({ items: [], next_offset: null }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
-      return new Response(JSON.stringify(workspace), { status: 200, headers: { "Content-Type": "application/json" } });
+      return workspaceResponse(input, workspace);
     }));
     const user = userEvent.setup();
     render(<App />);
 
+    await user.click(await screen.findByRole("button", { name: "Underwriting Assessment" }));
     expect(await screen.findByRole("heading", { name: "Case overview" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Risk heatmap" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Data completeness" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Next best actions" })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "Underwriting queue" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Cases" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Queues", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "My underwriting queue" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "SLA watch" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Search underwriting cases" })).not.toBeInTheDocument();
 
-    for (const section of ["Overview", "AI Assessment", "Underwriting", "Documents", "Simulator", "Decision", "Ask AI", "Audit"]) {
+    for (const section of ["Document Review", "HITL Review", "Case Evidence", "Underwriting Assessment"]) {
       expect(screen.getByRole("button", { name: new RegExp(`^${section}$`) })).toBeInTheDocument();
     }
 
     await user.click(screen.getByRole("button", { name: /^Underwriting$/ }));
     expect(screen.getByRole("button", { name: "Financial review" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /^Documents$/ }));
-    expect(screen.getByRole("heading", { name: /^Documents$/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^Simulator$/ }));
     expect(screen.getByText(/Approved product rates, coverage inputs, and underwriting rules are not connected/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^Decision$/ }));
@@ -526,5 +770,51 @@ describe("focused workbench", () => {
     expect(screen.getByRole("heading", { name: "Case chat is not connected" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^Audit$/ }));
     expect(await screen.findByText("No audit events are available.")).toBeInTheDocument();
+  });
+
+  it("groups case evidence and explicitly marks backend-reported conflicts", async () => {
+    const conflictingWorkspace: Workspace = {
+      ...workspace,
+      documents: [
+        workspace.documents[0],
+        { ...workspace.documents[0], id: "doc-2", filename: "second-report.pdf" },
+      ],
+      fields: [
+        workspace.fields[0],
+        {
+          ...workspace.fields[0],
+          id: "field-tobacco-2",
+          document_id: "doc-2",
+          candidate_value: "No",
+          effective_value: "No",
+          latest_review: null,
+        },
+      ],
+      case_review: {
+        ...workspace.case_review,
+        open_flags: 2,
+        cross_document_conflicts: 1,
+        exceptions: [{
+          id: "conflict:lifestyle.tobacco",
+          kind: "cross_document_conflict",
+          category: "Cross-document conflict",
+          title: "Tobacco differs across documents",
+          status: "pending",
+          severity: "warning",
+          field_ids: ["field-tobacco", "field-tobacco-2"],
+          document_ids: ["doc-1", "doc-2"],
+          message: "The source values differ.",
+        }],
+      },
+    };
+    stubWorkspaceFetch(conflictingWorkspace);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Case Evidence" }));
+    expect(screen.getByText("Conflict · review sources")).toBeInTheDocument();
+    expect(screen.getByText("Tobacco differs across documents")).toBeInTheDocument();
+    expect(screen.getByText("second-report.pdf · text · pending")).toBeInTheDocument();
+    expect(screen.getByText(/does not choose a source of truth/i)).toBeInTheDocument();
   });
 });

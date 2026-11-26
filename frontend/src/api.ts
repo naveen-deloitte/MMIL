@@ -4,8 +4,12 @@ import type {
   CaseCreateInput,
   CaseListItem,
   CaseSummary,
+  DocumentDeletion,
   DocumentSummary,
+  ExtractionHistory,
   ReviewPayload,
+  UnderwritingVarianceDecisionInput,
+  UnderwritingVarianceWorkspace,
   Workspace,
 } from "./types";
 
@@ -54,6 +58,34 @@ export function loadCases(): Promise<CaseListItem[]> {
   return request<CaseListItem[]>("/api/v1/cases");
 }
 
+export function loadUnderwritingVariances(caseId: string): Promise<UnderwritingVarianceWorkspace> {
+  return request<UnderwritingVarianceWorkspace>(
+    `/api/v1/cases/${encodeURIComponent(caseId)}/underwriting-variances`,
+  );
+}
+
+export function recordUnderwritingVarianceDecision(
+  caseId: string,
+  varianceId: string,
+  payload: UnderwritingVarianceDecisionInput,
+): Promise<UnderwritingVarianceWorkspace> {
+  return request<UnderwritingVarianceWorkspace>(
+    `/api/v1/cases/${encodeURIComponent(caseId)}/underwriting-variances/${encodeURIComponent(varianceId)}/decisions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export function resetDemoUnderwritingVariance(caseId: string): Promise<UnderwritingVarianceWorkspace> {
+  return request<UnderwritingVarianceWorkspace>(
+    `/api/v1/cases/${encodeURIComponent(caseId)}/underwriting-variances/demo-reset`,
+    { method: "POST" },
+  );
+}
+
 export function createCase(payload: CaseCreateInput): Promise<CaseSummary> {
   return request<CaseSummary>("/api/v1/cases", {
     method: "POST",
@@ -89,6 +121,18 @@ export function retryDocument(documentId: string): Promise<DocumentSummary> {
   return request<DocumentSummary>(
     `/api/v1/documents/${encodeURIComponent(documentId)}/retry`,
     { method: "POST" },
+  );
+}
+
+export function deleteDocument(documentId: string): Promise<DocumentDeletion> {
+  return request<DocumentDeletion>(`/api/v1/documents/${encodeURIComponent(documentId)}`, {
+    method: "DELETE",
+  });
+}
+
+export function loadExtractionHistory(documentId: string): Promise<ExtractionHistory> {
+  return request<ExtractionHistory>(
+    `/api/v1/documents/${encodeURIComponent(documentId)}/extractions/history`,
   );
 }
 

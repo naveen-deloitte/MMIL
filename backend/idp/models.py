@@ -67,16 +67,57 @@ class Case(Base):
     proposal_number: Mapped[str] = mapped_column(String(100), nullable=False)
     product_name: Mapped[str] = mapped_column(String(200), nullable=False)
     created_by: Mapped[str | None] = mapped_column(String(200))
+    is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     workflow_stage: Mapped[str] = mapped_column(String(50), nullable=False, default="human_review")
     sla_label: Mapped[str] = mapped_column(String(100), nullable=False, default="Not set")
-    created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, onupdate=utc_now, nullable=False
     )
 
     documents: Mapped[list[Document]] = relationship(back_populates="case")
+
+
+class UnderwritingVariance(Base):
+    __tablename__ = "underwriting_variances"
+    __table_args__ = (
+        UniqueConstraint("case_id", "category", name="uq_variance_case_category"),
+        Index("ix_variance_tenant_case", "tenant_id", "case_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    category: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    applied_value: Mapped[int] = mapped_column(Integer, nullable=False)
+    suggested_value: Mapped[int] = mapped_column(Integer, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    recommendation_source: Mapped[str] = mapped_column(String(200), nullable=False)
+    recommendation_rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+
+
+class UnderwritingVarianceDecision(Base):
+    __tablename__ = "underwriting_variance_decisions"
+    __table_args__ = (
+        Index("ix_variance_decision_history", "variance_id", "reviewed_at"),
+        Index("ix_variance_decision_current", "variance_id", "is_current"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    variance_id: Mapped[str] = mapped_column(
+        ForeignKey("underwriting_variances.id", ondelete="CASCADE"), nullable=False
+    )
+    decision: Mapped[str] = mapped_column(String(40), nullable=False)
+    selected_value: Mapped[int | None] = mapped_column(Integer)
+    justification: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewer_subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    approval_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    reviewed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
 
 
 class Document(Base):
@@ -107,9 +148,7 @@ class Document(Base):
     idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
     created_by: Mapped[str] = mapped_column(String(200), nullable=False)
     latest_run_id: Mapped[str | None] = mapped_column(String(36))
-    created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, onupdate=utc_now, nullable=False
     )
@@ -147,18 +186,14 @@ class ProcessingJob(Base):
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="uploaded")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
-    available_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    available_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     lease_owner: Mapped[str | None] = mapped_column(String(200))
     lease_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     failure_code: Mapped[str | None] = mapped_column(String(100))
     correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
-    created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, onupdate=utc_now, nullable=False
     )
@@ -188,9 +223,7 @@ class ExtractionRun(Base):
     model_version: Mapped[str] = mapped_column(String(200), nullable=False)
     prompt_version: Mapped[str] = mapped_column(String(100), nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     input_tokens: Mapped[int | None] = mapped_column(Integer)
@@ -256,9 +289,7 @@ class ExtractedField(Base):
     citations_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     review_state: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     review_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
 
     run: Mapped[ExtractionRun] = relationship(back_populates="fields")
     reviews: Mapped[list[EvidenceReview]] = relationship(back_populates="field")
@@ -316,9 +347,7 @@ class EvidenceReview(Base):
     before_value_json: Mapped[Any | None] = mapped_column(JSON)
     after_value_json: Mapped[Any | None] = mapped_column(JSON)
     reviewer_subject: Mapped[str] = mapped_column(String(200), nullable=False)
-    reviewed_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    reviewed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
 
     field: Mapped[ExtractedField] = relationship(back_populates="reviews")
@@ -339,6 +368,4 @@ class AuditEvent(Base):
     outcome: Mapped[str] = mapped_column(String(50), nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-    occurred_at: Mapped[datetime] = mapped_column(
-        UTCDateTime(), default=utc_now, nullable=False
-    )
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)

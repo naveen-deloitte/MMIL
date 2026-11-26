@@ -92,6 +92,13 @@ class LocalObjectStore:
             raise ProcessingError("object_integrity_mismatch", retryable=False)
         return path
 
+    def delete(self, object_key: str) -> None:
+        path = self._resolve_key(object_key)
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            raise ProcessingError("object_delete_failed", retryable=False) from exc
+
     def _resolve_key(self, object_key: str) -> Path:
         candidate = (self.root / object_key).resolve()
         try:

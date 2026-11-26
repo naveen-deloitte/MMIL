@@ -1,0 +1,97 @@
+{
+  "planHash": "afa27acf5e2ad57e09124c5f54e2f768c433ab3211b505eb9693d989541dfe70",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-11-26T05:50:50.2738967Z",
+  "retryCount": 0,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 0,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "production-build",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E mmil-medical-evidence-workbench-web@0.1.0 build\r\n\u003E tsc -b \u0026\u0026 vite build\r\n\r\n\u001B[33mYou are using Node.js 20.17.0. Vite requires Node.js version 20.19\u002B or 22.12\u002B. Please upgrade your Node.js version.\u001B[39m\r\n\u001B[36mvite v8.3.8 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\ntransforming...\r\n\u2713 27 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                   0.53 kB \u2502 gzip:  0.32 kB\r\ndist/assets/index-C1n4VsB5.css   60.60 kB \u2502 gzip: 11.53 kB\r\ndist/assets/index-QjSW32DJ.js   336.40 kB \u2502 gzip: 95.51 kB\r\n\r\n\u001B[32m\u2713 built in 910ms\u001B[39m\r\n",
+        "durationMs": 19417
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": false,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 1,
+        "outputSample": "\r\n\u003E mmil-medical-evidence-workbench-web@0.1.0 test\r\n\u003E vitest run\r\n\r\n\r\n RUN  v5.1.0 D:/Downloads/newmmil/MMIL/frontend\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF Unhandled Errors \u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\n\r\nVitest caught 4 unhandled errors during the test run.\r\nThis might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF Unhandled Error \u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\nError: [vitest-pool]: Failed to start forks worker for test files D:/Downloads/newmmil/MMIL/frontend/src/App.test.tsx.\r\n \u276F node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:94\r\n \u276F process.processTicksAndRejections node:internal/process/task_queues:95:5\r\n \u276F Pool.schedule node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:5\r\n\r\nCaused by: Error: require() of ES Module D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\@exodus\\bytes\\encoding-lite.js from D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\html-encoding-sniffer.js not supported.\r\nInstead change the require of encoding-lite.js in D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\html-encoding-sniffer.js to a dynamic import() which is available in all CommonJS modules.\r\n \u276F Object.\u003Canonymous\u003E node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js:2:41\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\nSerialized Error: { code: \u0027ERR_REQUIRE_ESM\u0027 }\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF Unhandled Error \u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\nError: [vitest-pool]: Failed to start forks worker for test files D:/Downloads/newmmil/MMIL/frontend/src/components/EvidenceViews.test.tsx.\r\n \u276F node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:94\r\n \u276F process.processTicksAndRejections node:internal/process/task_queues:95:5\r\n \u276F Pool.schedule node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:5\r\n\r\nCaused by: Error: require() of ES Module D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\@exodus\\bytes\\encoding-lite.js from D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\html-encoding-sniffer.js not supported.\r\nInstead change the require of encoding-lite.js in D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\html-encoding-sniffer.js to a dynamic import() which is available in all CommonJS modules.\r\n \u276F Object.\u003Canonymous\u003E node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js:2:41\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\nSerialized Error: { code: \u0027ERR_REQUIRE_ESM\u0027 }\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF Unhandled Error \u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\nError: [vitest-pool]: Failed to start forks worker for test files D:/Downloads/newmmil/MMIL/frontend/src/components/ReviewDialog.test.tsx.\r\n \u276F node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:94\r\n \u276F process.processTicksAndRejections node:internal/process/task_queues:95:5\r\n \u276F Pool.schedule node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:5\r\n\r\nCaused by: Error: require() of ES Module D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\@exodus\\bytes\\encoding-lite.js from D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\html-encoding-sniffer.js not supported.\r\nInstead change the require of encoding-lite.js in D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\html-encoding-sniffer.js to a dynamic import() which is available in all CommonJS modules.\r\n \u276F Object.\u003Canonymous\u003E node_modules/html-encoding-sniffer/lib/html-encoding-sniffer.js:2:41\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\nSerialized Error: { code: \u0027ERR_REQUIRE_ESM\u0027 }\r\n\r\n\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF Unhandled Error \u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\u23AF\r\nError: [vitest-pool]: Failed to start forks worker for test files D:/Downloads/newmmil/MMIL/frontend/src/sourceState.test.ts.\r\n \u276F node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:94\r\n \u276F process.processTicksAndRejections node:internal/process/task_queues:95:5\r\n \u276F Pool.schedule node_modules/vitest/dist/chunks/index.Di8au7q4.js:5932:5\r\n\r\nCaused by: Error: require() of ES Module D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\@exodus\\bytes\\encoding-lite.js from D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\html-encoding-sniffer.js not supported.\r\nInstead change the require of encoding-lite.js in D:\\Downloads\\newmmil\\MMIL\\frontend\\node_modules\\html-encoding-sniffer\\lib\\\n\u2026[truncated]",
+        "durationMs": 6811,
+        "testResults": {
+          "testFramework": "vitest",
+          "runnerDetectedFrom": "package_json",
+          "testsTotal": 0,
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": true
+        }
+      },
+      {
+        "name": "dev-server-home-200",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": null,
+        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\r\n\u003Chtml lang=\u0022en\u0022\u003E\r\n  \u003Chead\u003E\n    \u003Cscript type=\u0022module\u0022\u003Eimport { injectIntoGlobalHook } from \u0022/@react-refresh\u0022;\ninjectIntoGlobalHook(window);\nwindow.$RefreshReg$ = () =\u003E {};\nwindow.$RefreshSig$ = () =\u003E (type) =\u003E type;\u003C/script\u003E\n\n    \u003Cscript type=\u0022module\u0022 src=\u0022/@vite/client\u0022\u003E\u003C/script\u003E\n\r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\r\n    \u003Cmeta name=\u0022color-scheme\u0022 content=\u0022light\u0022 /\u003E\r\n    \u003Cmeta name=\u0022referrer\u0022 content=\u0022no-referrer\u0022 /\u003E\r\n    \u003Ctitle\u003EMMIL Medical Evidence Workbench\u003C/title\u003E\r\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\r\n    \u003Cscript type=\u0022module\u0022 src=\u0022/src/main.tsx?t=1795672030671\u0022\u003E\u003C/script\u003E\r\n  \u003C/body\u003E\r\n\u003C/html\u003E\r\n\n--- server output ---\n\r\n\u003E mmil-medical-evidence-workbench-web@0.1.0 dev\r\n\u003E vite --host 0.0.0.0\r\n\r\n",
+        "durationMs": 2039
+      }
+    ],
+    "executions": [
+      {
+        "source": "production-build",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "build"
+        ],
+        "cwd": "D:\\Downloads\\newmmil\\MMIL\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "test"
+        ],
+        "cwd": "D:\\Downloads\\newmmil\\MMIL\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "dev-server-home-200",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "dev"
+        ],
+        "cwd": "D:\\Downloads\\newmmil\\MMIL\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      }
+    ]
+  }
+}

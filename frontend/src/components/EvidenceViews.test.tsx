@@ -106,6 +106,28 @@ describe("medical evidence views", () => {
     expect(onGenerateSummary).toHaveBeenCalledOnce();
   });
 
+  it("explains local extraction has no AI summary and offers a rerun", () => {
+    const onReprocessLocal = vi.fn();
+    render(
+      <SummaryView
+        fields={[]}
+        analysis={null}
+        onAiCitation={vi.fn()}
+        canGenerateSummary={false}
+        canReprocessLocal
+        isLocalRun
+        onGenerateSummary={vi.fn()}
+        onReprocessLocal={onReprocessLocal}
+        onCitation={vi.fn()}
+        onReview={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/deterministic local extraction/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Re-run local extraction" }));
+    expect(onReprocessLocal).toHaveBeenCalledOnce();
+  });
+
   it("shows AI-identified major report factors under Vitals", () => {
     const analysis: AiAnalysis = {
       summary: null,

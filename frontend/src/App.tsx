@@ -2,6 +2,8 @@ import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   ApiError,
   createCase,
+  deleteDocument,
+  loadExtractionHistory,
   loadCases,
   loadAudit,
   loadWorkspace,
@@ -10,8 +12,12 @@ import {
   uploadDocument,
 } from "./api";
 import { advisoryNotes, isAutoAccepted } from "./advisory";
-import { DashboardCharts, matchesDashboardFilter } from "./components/DashboardCharts";
-import { DrawerShell, DocumentsDrawer } from "./components/Drawers";
+import { DashboardKpiCards, UnderwritingQueue } from "./components/DashboardWorkload";
+import {
+  DemoCaseWorkspace,
+  UnderwritingVarianceReview,
+} from "./components/UnderwritingVariance";
+import { DrawerShell } from "./components/Drawers";
 import {
   AdditionalFactsView,
   KnockoutChecksView,
@@ -33,24 +39,38 @@ import type {
   AuditEvent,
   CaseCreateInput,
   CaseListItem,
+  CaseSummary,
   Citation,
   DocumentSummary,
+  ExtractionHistory,
   EvidenceField,
   ReviewPayload,
   Workspace,
 } from "./types";
 
 type MedicalView = "summary" | "vitals" | "lab-reports" | "knockout-checks" | "additional-facts";
-type CaseSection = "Overview" | "AI Assessment" | "Underwriting" | "Documents" | "Simulator" | "Decision" | "Ask AI" | "Audit";
+type CaseSection =
+  | "Document Review"
+  | "HITL Review"
+  | "Case Evidence"
+  | "Underwriting Assessment"
+  | "Underwriting Variance Review";
+type AssessmentView = "Overview" | "Underwriting" | "Decision" | "Simulator" | "Ask AI" | "Audit";
 type UploadDocumentType = "medical_report" | "kyc_individual";
 
 const caseSections: CaseSection[] = [
+  "Document Review",
+  "HITL Review",
+  "Case Evidence",
+  "Underwriting Assessment",
+  "Underwriting Variance Review",
+];
+
+const assessmentViews: AssessmentView[] = [
   "Overview",
-  "AI Assessment",
   "Underwriting",
-  "Documents",
-  "Simulator",
   "Decision",
+  "Simulator",
   "Ask AI",
   "Audit",
 ];
@@ -74,22 +94,25 @@ const medicalViews: Array<{ id: MedicalView; label: string }> = [
 ];
 
 const activeStatuses = new Set(["uploaded", "scanning", "ocr", "extracting"]);
+const DEMO_CASE_ID = "MMIL-DEMO-001";
 
 export default function App() {
   const [activeCaseId, setActiveCaseId] = useState<string | null>(readCaseId);
   const [caseItems, setCaseItems] = useState<CaseListItem[]>([]);
+  const [demoCase, setDemoCase] = useState<CaseSummary | null>(null);
+  const [demoCaseError, setDemoCaseError] = useState<string | null>(null);
   const [caseListLoading, setCaseListLoading] = useState(true);
   const [caseListError, setCaseListError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(Boolean(readCaseId()));
   const [aiPanelOpen, setAiPanelOpen] = useState(true);
-  const [sidebarSearch, setSidebarSearch] = useState("");
   const [pageError, setPageError] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   // Document whose "processing is queued" message stays visible until processing finishes.
   const [trackedUploadId, setTrackedUploadId] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<CaseSection>("Overview");
+  const [activeSection, setActiveSection] = useState<CaseSection>("Document Review");
   const [activeView, setActiveView] = useState<string>("summary");
+  const [assessmentView, setAssessmentView] = useState<AssessmentView>("Overview");
   const [activeUnderwritingSection, setActiveUnderwritingSection] =
     useState<(typeof underwritingSections)[number]>("Medical evidence");
   const [uploadDocumentType, setUploadDocumentType] = useState<UploadDocumentType>("medical_report");
@@ -98,10 +121,18 @@ export default function App() {
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
-  const [documentsOpen, setDocumentsOpen] = useState(false);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
+  const [history, setHistory] = useState<ExtractionHistory | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [hitlDocumentType, setHitlDocumentType] = useState("all");
+  const [hitlStatus, setHitlStatus] = useState("pending");
+  const [removalDocument, setRemovalDocument] = useState<DocumentSummary | null>(null);
+  const [removalBusy, setRemovalBusy] = useState(false);
+  const [removalError, setRemovalError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async (quiet = false) => {
@@ -120,15 +151,35 @@ export default function App() {
   const refreshCases = useCallback(async () => {
     setCaseListLoading(true);
     setCaseListError(null);
-    try {
-      const next = await loadCases();
-      setCaseItems(Array.isArray(next) ? next : []);
-    } catch (error) {
-      setCaseListError(messageFor(error));
-    } finally {
-      setCaseListLoading(false);
+    const [casesResult, demoResult] = await Promise.allSettled([
+      loadCases(),
+      activeCaseId ? Promise.resolve(null) : loadWorkspace(DEMO_CASE_ID),
+    ]);
+
+    if (casesResult.status === "fulfilled") {
+      setCaseItems(Array.isArray(casesResult.value) ? casesResult.value : []);
+    } else {
+      setCaseListError(messageFor(casesResult.reason));
     }
-  }, []);
+
+    if (demoResult.status === "fulfilled") {
+      const demoSummary = demoResult.value?.case;
+      if (demoSummary?.is_demo && demoSummary.external_case_id === DEMO_CASE_ID) {
+        setDemoCase(demoSummary);
+        setDemoCaseError(null);
+      } else {
+        setDemoCase(null);
+        setDemoCaseError(null);
+      }
+    } else if (activeCaseId) {
+      setDemoCase(null);
+      setDemoCaseError(null);
+    } else {
+      setDemoCase(null);
+      setDemoCaseError(messageFor(demoResult.reason));
+    }
+    setCaseListLoading(false);
+  }, [activeCaseId]);
 
   useEffect(() => {
     void refreshCases();
@@ -183,23 +234,59 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [processing, refresh]);
 
+  useEffect(() => {
+    if (!workspace) return;
+    if (!workspace.documents.some((document) => document.id === activeDocumentId)) {
+      setActiveDocumentId(workspace.documents[0]?.id ?? null);
+    }
+  }, [activeDocumentId, workspace]);
+
   const latestDocument = workspace?.documents[0] ?? null;
-  const latestRun = workspace?.runs.find((run) => run.document_id === latestDocument?.id);
+  const selectedDocument = workspace?.documents.find((item) => item.id === activeDocumentId) ?? latestDocument;
+  const latestRun = workspace?.runs.find((run) => run.document_id === selectedDocument?.id);
   const latestDocumentFields = workspace?.fields.filter(
-    (field) => field.document_id === latestDocument?.id,
+    (field) => field.document_id === selectedDocument?.id,
   ) ?? [];
-  const isKycDocument = latestDocument?.document_type === "kyc_individual";
+  const isKycDocument = selectedDocument?.document_type === "kyc_individual";
   const visibleViews = isKycDocument ? kycViews : medicalViews;
   const activeKycView = kycViews.find((view) => view.id === activeView)?.id ?? "overview";
   const selectedView = isKycDocument ? activeKycView : activeView;
   const canGenerateSummary = Boolean(
-    latestDocument
-      && ["completed", "review_required"].includes(latestDocument.status)
+    selectedDocument
+      && ["completed", "review_required"].includes(selectedDocument.status)
       && latestRun
       && latestRun.provider !== "deterministic-local"
       && !latestRun.ai_analysis?.summary,
   );
-  const selectedDocument = workspace?.documents.find((item) => item.id === source.documentId) ?? null;
+  const canReprocessLocal = Boolean(
+    selectedDocument
+      && ["completed", "review_required"].includes(selectedDocument.status)
+      && latestRun?.provider === "deterministic-local",
+  );
+
+  useEffect(() => {
+    if (!selectedDocument) {
+      setHistory(null);
+      setHistoryError(null);
+      return;
+    }
+    let cancelled = false;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    void loadExtractionHistory(selectedDocument.id)
+      .then((result) => {
+        if (!cancelled) setHistory(result);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setHistoryError(messageFor(error));
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDocument?.id, latestRun?.id]);
 
   function navigateToCase(caseId: string | null) {
     const url = new URL(window.location.href);
@@ -210,6 +297,8 @@ export default function App() {
     setWorkspace(null);
     setPageError(null);
     setLoading(Boolean(caseId));
+    setActiveDocumentId(null);
+    setHistory(null);
     setSource((current) => ({ ...current, open: false }));
   }
 
@@ -226,7 +315,8 @@ export default function App() {
       const caseId = workspace?.case.external_case_id;
       if (!caseId) throw new Error("Open a case before uploading a document.");
       const document = await uploadDocument(caseId, file, uploadDocumentType);
-      setActiveSection("AI Assessment");
+      setActiveSection("Document Review");
+      setActiveDocumentId(document.id);
       setActiveView(document.document_type === "kyc_individual" ? "overview" : "summary");
       setNotice(`${document.filename} uploaded. Processing is queued.`);
       setTrackedUploadId(document.id);
@@ -240,7 +330,7 @@ export default function App() {
   }
 
   function openSource(document?: DocumentSummary) {
-    const target = document ?? selectedDocument ?? latestDocument;
+    const target = document ?? selectedDocument;
     if (!target) {
       setNotice("Upload a document before opening the source viewer.");
       return;
@@ -295,6 +385,26 @@ export default function App() {
     }
   }
 
+  async function handleRemoveDocument(document: DocumentSummary) {
+    setRemovalBusy(true);
+    setRemovalError(null);
+    try {
+      const result = await deleteDocument(document.id);
+      if (!result.deleted) throw new Error("The document was not removed.");
+      setTrackedUploadId((current) => current === document.id ? null : current);
+      setSource((current) => current.documentId === document.id ? { ...current, open: false } : current);
+      setReviewField((current) => current?.document_id === document.id ? null : current);
+      setRemovalDocument(null);
+      setNotice(`${document.filename} and its extracted evidence were permanently removed.`);
+      await refresh(true);
+      await refreshCases();
+    } catch (error) {
+      setRemovalError(messageFor(error));
+    } finally {
+      setRemovalBusy(false);
+    }
+  }
+
   async function loadAuditHistory() {
     setAuditLoading(true);
     setAuditError(null);
@@ -317,6 +427,8 @@ export default function App() {
     return (
       <CasesHome
         cases={caseItems}
+        demoCase={demoCase}
+        demoCaseError={demoCaseError}
         loading={caseListLoading}
         error={caseListError}
         notice={notice}
@@ -338,6 +450,15 @@ export default function App() {
         <p>{pageError ?? "The case could not be loaded."}</p>
         <button type="button" className="primary-button" onClick={() => { setLoading(true); void refresh(); }}>Try again</button>
       </div>
+    );
+  }
+
+  if (workspace.case.is_demo) {
+    return (
+      <DemoCaseWorkspace
+        caseSummary={workspace.case}
+        onBack={() => navigateToCase(null)}
+      />
     );
   }
 
@@ -397,32 +518,18 @@ export default function App() {
           </label>
           <button type="button" className="primary-button" onClick={() => fileInput.current?.click()}>Add document</button>
           <button type="button" className="secondary-button" onClick={() => setReviewDrawerOpen(true)}>Request requirements</button>
-          <button type="button" className="secondary-button" onClick={() => setDocumentsOpen(true)}>Manage documents <span className="button-count">{workspace.documents.length}</span></button>
+          <button type="button" className="secondary-button" onClick={() => setActiveSection("Document Review")}>Manage documents <span className="button-count">{workspace.documents.length}</span></button>
           <button type="button" className="secondary-button" onClick={() => openSource()}>View source</button>
-          <button type="button" className="secondary-button" onClick={() => setReviewDrawerOpen(true)}>
-            HITL review <span className="button-count">{workspace.counts.pending}</span>
+          <button type="button" className="secondary-button" onClick={() => setActiveSection("HITL Review")}>
+            HITL review <span className="button-count">{workspace.case_review.open_flags}</span>
           </button>
-          <button type="button" className="primary-button" onClick={() => setReviewDrawerOpen(true)}>Decision cockpit</button>
+          <button type="button" className="primary-button" onClick={() => { setActiveSection("Underwriting Assessment"); setAssessmentView("Decision"); }}>Decision cockpit</button>
         </div>
       </section>
 
-      <ProgressStrip document={latestDocument} />
+      <ProgressStrip document={selectedDocument} />
 
-      <div className="queue-tools-bar">
-        <div className="queue-tools-inner">
-          <label className="queue-search-input">
-            <span className="visually-hidden">Search underwriting cases</span>
-            <input
-              aria-label="Search underwriting cases"
-              placeholder="Search case, proposal or city"
-              value={sidebarSearch}
-              onChange={(event) => setSidebarSearch(event.target.value)}
-            />
-          </label>
-        </div>
-      </div>
-
-      <main className={`main-layout sidebar-open ${aiPanelOpen ? "" : "ai-collapsed"}`}>
+      <main className={`main-layout ${aiPanelOpen ? "" : "ai-collapsed"}`}>
         <button
           type="button"
           className="ai-panel-toggle"
@@ -437,35 +544,8 @@ export default function App() {
             <path d={aiPanelOpen ? "M15 4v16M8 9l3 3-3 3" : "M15 4v16M11 9l-3 3 3 3"} />
           </svg>
         </button>
-        <aside id="underwriting-queue" className="case-sidebar" aria-label="Underwriting queue">
-          <div className="case-sidebar-inner">
-          <div className="queue-heading-row">
-            <div className="queue-section-label">Queues</div>
-          </div>
-          <button type="button" className="queue-filter active"><span>☷</span> My underwriting queue</button>
-          <button type="button" className="queue-filter"><span>◆</span> Medical review</button>
-          <button type="button" className="queue-filter"><span>₹</span> Financial review</button>
-          <button type="button" className="queue-filter"><span>◷</span> SLA watch</button>
-          <div className="queue-section-label">Cases</div>
-          <div className="sidebar-case-list">
-            {caseItems.filter(({ case: item }) =>
-              `${item.applicant_display_name} ${item.external_case_id} ${item.proposal_number}`.toLowerCase().includes(sidebarSearch.trim().toLowerCase()),
-            ).map(({ case: item }) => (
-              <button
-                type="button"
-                key={item.id}
-                className={`sidebar-case-card ${item.external_case_id === workspace.case.external_case_id ? "active" : ""}`}
-                onClick={() => navigateToCase(item.external_case_id)}
-              >
-                <strong>{item.applicant_display_name}</strong>
-                <span>{item.external_case_id}</span>
-              </button>
-            ))}
-          </div>
-          </div>
-        </aside>
         <section className="evidence-pane" aria-label={isKycDocument ? "KYC review" : "Medical evidence"}>
-          <nav className="case-section-tabs" aria-label="Underwriting case sections">
+          <nav className="case-section-tabs" aria-label="Case workspace sections">
             {caseSections.map((section) => (
               <button
                 type="button"
@@ -474,7 +554,6 @@ export default function App() {
                 aria-current={activeSection === section ? "page" : undefined}
                 onClick={() => {
                   setActiveSection(section);
-                  if (section === "Audit") void loadAuditHistory();
                 }}
               >
                 {section}
@@ -482,16 +561,22 @@ export default function App() {
             ))}
           </nav>
           <div className="evidence-scroll">
-            {activeSection === "Overview" ? (
-              <OverviewSection
-                workspace={workspace}
-                onOpenDocuments={() => setActiveSection("Documents")}
-                onOpenAssessment={() => setActiveSection("AI Assessment")}
-                onOpenReview={() => setReviewDrawerOpen(true)}
-              />
-            ) : null}
-            {activeSection === "AI Assessment" ? (
+            {activeSection === "Document Review" ? (
               <>
+                <DocumentReviewHeader
+                  documents={workspace.documents}
+                  document={selectedDocument}
+                  history={history}
+                  historyLoading={historyLoading}
+                  historyError={historyError}
+                  onSelect={(document) => setActiveDocumentId(document.id)}
+                  onOpenSource={openSource}
+                  onRetry={(document) => void handleRetry(document)}
+                  onRemove={(document) => {
+                    setRemovalError(null);
+                    setRemovalDocument(document);
+                  }}
+                />
                 <nav className="medical-tabs" aria-label={isKycDocument ? "KYC assessment views" : "Medical assessment views"}>
                   {visibleViews.map((view) => (
                     <button
@@ -509,70 +594,147 @@ export default function App() {
                     </button>
                   ))}
                 </nav>
-                {isKycDocument ? (
+                {!selectedDocument ? (
+                  <div className="section-empty-state">
+                    <strong>No documents uploaded</strong>
+                    <p>Add a document to review extracted fields and source citations.</p>
+                  </div>
+                ) : isKycDocument ? (
                   <KycViews
                     activeView={activeKycView}
-                    document={latestDocument}
+                    document={selectedDocument}
                     fields={latestDocumentFields}
                     onCitation={openCitation}
                     onReview={(field) => { setReviewError(null); setReviewField(field); }}
                   />
                 ) : (
                   <>
-                    {activeView === "summary" ? <SummaryView fields={latestDocumentFields} analysis={latestRun?.ai_analysis ?? null} canGenerateSummary={canGenerateSummary} onGenerateSummary={() => { if (latestDocument) void handleRetry(latestDocument); }} onAiCitation={openAnalysisCitation} onCitation={openCitation} onReview={(field) => { setReviewError(null); setReviewField(field); }} /> : null}
+                    {activeView === "summary" ? (
+                      <SummaryView
+                        fields={latestDocumentFields}
+                        analysis={latestRun?.ai_analysis ?? null}
+                        canGenerateSummary={canGenerateSummary}
+                        canReprocessLocal={canReprocessLocal}
+                        isLocalRun={latestRun?.provider === "deterministic-local"}
+                        onGenerateSummary={() => {
+                          if (selectedDocument) void handleRetry(selectedDocument);
+                        }}
+                        onReprocessLocal={() => {
+                          if (selectedDocument) void handleRetry(selectedDocument);
+                        }}
+                        onAiCitation={openAnalysisCitation}
+                        onCitation={openCitation}
+                        onReview={(field) => {
+                          setReviewError(null);
+                          setReviewField(field);
+                        }}
+                      />
+                    ) : null}
                     {activeView === "vitals" ? <VitalsView fields={latestDocumentFields} analysis={latestRun?.ai_analysis ?? null} onAiCitation={openAnalysisCitation} onCitation={openCitation} onReview={(field) => { setReviewError(null); setReviewField(field); }} /> : null}
                     {activeView === "lab-reports" ? <LabReportsView results={latestRun?.ai_analysis?.lab_results ?? []} onCitation={openAnalysisCitation} /> : null}
                     {activeView === "knockout-checks" ? <KnockoutChecksView checks={latestRun?.ai_analysis?.knockout_checks ?? []} onCitation={openAnalysisCitation} /> : null}
-                    {activeView === "additional-facts" ? <AdditionalFactsView facts={workspace.additional_facts.filter((fact) => fact.document_id === latestDocument?.id)} onCitation={openCitation} /> : null}
+                    {activeView === "additional-facts" ? <AdditionalFactsView facts={workspace.additional_facts.filter((fact) => fact.document_id === selectedDocument?.id)} onCitation={openCitation} /> : null}
                     <p className="data-note">Extracted candidates require human review before use as case evidence. No underwriting or clinical decision is made here.</p>
                   </>
                 )}
               </>
             ) : null}
-            {activeSection === "Underwriting" ? (
-              <UnderwritingSection
-                sections={underwritingSections}
-                activeSection={activeUnderwritingSection}
-                onSelect={setActiveUnderwritingSection}
-                isKycDocument={isKycDocument}
-                document={latestDocument}
-                fields={latestDocumentFields}
-                caseInfo={{
-                  applicant: workspace.case.applicant_display_name,
-                  caseId: workspace.case.external_case_id,
-                  proposal: workspace.case.proposal_number,
-                }}
-                onOpenAssessment={() => setActiveSection("AI Assessment")}
-                onOpenReview={() => setReviewDrawerOpen(true)}
-                onCitation={openCitation}
-                onReview={(field) => { setReviewError(null); setReviewField(field); }}
-              />
+            {activeSection === "Underwriting Variance Review" ? (
+              <UnderwritingVarianceReview caseId={workspace.case.external_case_id} />
             ) : null}
-            {activeSection === "Documents" ? (
-              <DocumentsSection
-                documents={workspace.documents}
-                onUpload={() => fileInput.current?.click()}
-                onOpenSource={openSource}
+            {activeSection === "HITL Review" ? (
+              <HitlReviewSection
+                workspace={workspace}
+                documentType={hitlDocumentType}
+                status={hitlStatus}
+                documentNames={fieldDocumentNames}
+                onDocumentTypeChange={setHitlDocumentType}
+                onStatusChange={setHitlStatus}
+                onReview={(field) => { setReviewError(null); setReviewField(field); }}
+                onCitation={openCitation}
+                onSelectDocument={(documentId) => {
+                  setActiveDocumentId(documentId);
+                  setActiveSection("Document Review");
+                }}
                 onRetry={(document) => void handleRetry(document)}
               />
             ) : null}
-            {activeSection === "Simulator" ? <SimulatorSection workspace={workspace} /> : null}
-            {activeSection === "Decision" ? (
-              <DecisionSection
+            {activeSection === "Case Evidence" ? (
+              <CaseEvidenceSection
                 workspace={workspace}
-                onReview={() => setReviewDrawerOpen(true)}
-                onRequirements={() => setReviewDrawerOpen(true)}
-                onOpenAssessment={() => setActiveSection("AI Assessment")}
+                documentNames={fieldDocumentNames}
+                onCitation={openCitation}
+                onReview={(field) => { setReviewError(null); setReviewField(field); }}
+                onSelectDocument={(documentId) => {
+                  setActiveDocumentId(documentId);
+                  setActiveSection("Document Review");
+                }}
               />
             ) : null}
-            {activeSection === "Ask AI" ? (
-              <AskAiSection
-                onOpenAssessment={() => setActiveSection("AI Assessment")}
-                onReview={() => setReviewDrawerOpen(true)}
-              />
-            ) : null}
-            {activeSection === "Audit" ? (
-              <AuditSection events={auditEvents} loading={auditLoading} error={auditError} />
+            {activeSection === "Underwriting Assessment" ? (
+              <>
+                <nav className="medical-tabs assessment-tabs" aria-label="Underwriting assessment views">
+                  {assessmentViews.map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      className={assessmentView === view ? "active" : ""}
+                      aria-current={assessmentView === view ? "page" : undefined}
+                      onClick={() => {
+                        setAssessmentView(view);
+                        if (view === "Audit") void loadAuditHistory();
+                      }}
+                    >
+                      {view}
+                    </button>
+                  ))}
+                </nav>
+                {assessmentView === "Overview" ? (
+                  <OverviewSection
+                    workspace={workspace}
+                    onOpenDocuments={() => setActiveSection("Document Review")}
+                    onOpenAssessment={() => setActiveSection("Document Review")}
+                    onOpenReview={() => setActiveSection("HITL Review")}
+                  />
+                ) : null}
+                {assessmentView === "Underwriting" ? (
+                  <UnderwritingSection
+                    sections={underwritingSections}
+                    activeSection={activeUnderwritingSection}
+                    onSelect={setActiveUnderwritingSection}
+                    isKycDocument={isKycDocument}
+                    document={selectedDocument}
+                    fields={latestDocumentFields}
+                    caseInfo={{
+                      applicant: workspace.case.applicant_display_name,
+                      caseId: workspace.case.external_case_id,
+                      proposal: workspace.case.proposal_number,
+                    }}
+                    onOpenAssessment={() => setActiveSection("Document Review")}
+                    onOpenReview={() => setActiveSection("HITL Review")}
+                    onCitation={openCitation}
+                    onReview={(field) => { setReviewError(null); setReviewField(field); }}
+                  />
+                ) : null}
+                {assessmentView === "Decision" ? (
+                  <DecisionSection
+                    workspace={workspace}
+                    onReview={() => setActiveSection("HITL Review")}
+                    onRequirements={() => setReviewDrawerOpen(true)}
+                    onOpenAssessment={() => setActiveSection("Document Review")}
+                  />
+                ) : null}
+                {assessmentView === "Simulator" ? <SimulatorSection workspace={workspace} /> : null}
+                {assessmentView === "Ask AI" ? (
+                  <AskAiSection
+                    onOpenAssessment={() => setActiveSection("Document Review")}
+                    onReview={() => setActiveSection("HITL Review")}
+                  />
+                ) : null}
+                {assessmentView === "Audit" ? (
+                  <AuditSection events={auditEvents} loading={auditLoading} error={auditError} />
+                ) : null}
+              </>
             ) : null}
           </div>
         </section>
@@ -636,13 +798,23 @@ export default function App() {
           />
         </DrawerShell>
       ) : null}
-      {documentsOpen ? <DocumentsDrawer documents={workspace.documents} onClose={() => setDocumentsOpen(false)} onView={(document) => { setDocumentsOpen(false); openSource(document); }} onRetry={(document) => void handleRetry(document)} /> : null}
+      {removalDocument ? (
+        <DeleteDocumentDialog
+          document={removalDocument}
+          busy={removalBusy}
+          error={removalError}
+          onCancel={() => !removalBusy && setRemovalDocument(null)}
+          onConfirm={() => void handleRemoveDocument(removalDocument)}
+        />
+      ) : null}
     </div>
   );
 }
 
 function CasesHome({
   cases,
+  demoCase,
+  demoCaseError,
   loading,
   error,
   notice,
@@ -651,6 +823,8 @@ function CasesHome({
   onRefresh,
 }: {
   cases: CaseListItem[];
+  demoCase: CaseSummary | null;
+  demoCaseError: string | null;
   loading: boolean;
   error: string | null;
   notice: string;
@@ -668,31 +842,12 @@ function CasesHome({
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [queueFilter, setQueueFilter] = useState("all");
-  // Time the case list last arrived from the API, shown as "Updated hh:mm".
-  const refreshedAt = useMemo(() => (loading ? null : new Date()), [cases, loading]);
-
-  const visibleCases = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return cases.filter(({ case: item, document_count, last_activity_at }) => {
-      const matchesSearch = !needle || [
-        item.applicant_display_name,
-        item.external_case_id,
-        item.proposal_number,
-        item.product_name,
-        item.workflow_stage,
-      ].some((value) => value.toLowerCase().includes(needle));
-      const stage = item.workflow_stage.toLowerCase();
-      const matchesQueue =
-        queueFilter === "all"
-        || (queueFilter === "medical" && stage.includes("medical"))
-        || (queueFilter === "compliance" && stage.includes("compliance"))
-        || (queueFilter === "sla" && stage.includes("sla"))
-        || (["review", "awaiting_documents", "idle"].includes(queueFilter)
-          && matchesDashboardFilter({ case: item, document_count, last_activity_at }, queueFilter));
-      return matchesSearch && matchesQueue;
-    });
-  }, [cases, queueFilter, search]);
+  const [stageFilter, setStageFilter] = useState("all");
+  const [slaFilter, setSlaFilter] = useState("all");
+  const refreshedAt = useMemo(
+    () => (loading || error ? null : new Date()),
+    [cases, error, loading],
+  );
 
   async function submitCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -711,46 +866,46 @@ function CasesHome({
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function clearFilters() {
+    setSearch("");
+    setStageFilter("all");
+    setSlaFilter("all");
+  }
+
+  function selectStage(stage: string) {
+    setSearch("");
+    setSlaFilter("all");
+    setStageFilter(stage);
+  }
+
   return (
     <div className="application-shell case-home-shell">
       <header className="global-header">
         <div className="brand-lockup">
           <div className="logo">MMIL</div>
-          <div><strong>Mahindra Manulife<br />Operations Workbench</strong><span>NB & UW · Policy servicing · Claims</span></div>
+          <div><strong>Mahindra Manulife<br />Operations Workbench</strong></div>
         </div>
         <div className="header-controls">
-          <label className="role-picker">
-            View as role
-            <select aria-label="View as role" defaultValue="underwriter">
-              <option value="underwriter">Underwriter</option>
-              <option value="nb_ops">NB & UW Operations</option>
-            </select>
-          </label>
+          <span className="current-role"><span aria-hidden="true">●</span> Underwriter</span>
         </div>
       </header>
       <main className="cases-page">
-        <div className="cases-page-heading">
+        <section className="dashboard-welcome">
           <div>
-            <h1>Operations dashboard</h1>
-            <p>Prioritise work by queue, urgency and the next action needed.</p>
+            <span className="eyebrow">UNDERWRITING OPERATIONS</span>
+            <h1>Underwriting Workbench</h1>
+            <p>Review cases and keep your workload moving.</p>
           </div>
-          <div className="dashboard-search">
-            <input
-              aria-label="Search cases"
-              placeholder="Search name, case, proposal or city"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+          <div className="dashboard-welcome-actions">
+            <small>{refreshedAt ? `Last updated ${refreshedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Last updated —"}</small>
+            <button type="button" className="secondary-button" onClick={onRefresh} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+            <button type="button" className="primary-button" onClick={() => { setFormOpen(true); setFormError(null); }}>
+              Create new case
+            </button>
           </div>
-        </div>
-
-        <nav className="dashboard-team-tabs" aria-label="Operations teams">
-          <button type="button" className="active">NB & UW</button>
-        </nav>
-
-        {!loading && !error ? (
-          <DashboardCharts cases={cases} refreshedAt={refreshedAt} activeFilter={queueFilter} onFilter={setQueueFilter} />
-        ) : null}
+        </section>
 
         {notice ? <div className="notice blue cases-notice" role="status">{notice}</div> : null}
         {error ? (
@@ -828,64 +983,28 @@ function CasesHome({
           </section>
         ) : null}
 
-        <section className="case-list-section" aria-labelledby="case-list-title">
-          <div className="case-list-heading">
-            <div><h2 id="case-list-title">Cases</h2></div>
-            {!loading && !error && visibleCases.length !== cases.length ? (
-              <span className="tag neutral">Showing {visibleCases.length} of {cases.length}</span>
-            ) : null}
-          </div>
-          <div className="dashboard-queue-filters" aria-label="Filter work queue">
-            {[
-              ["all", "All cases"],
-              ["medical", "Medical review"],
-              ["compliance", "Compliance review"],
-              ["sla", "SLA at risk"],
-            ].map(([id, label]) => (
-              <button
-                type="button"
-                key={id}
-                className={queueFilter === id ? "active" : ""}
-                onClick={() => setQueueFilter(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <button type="button" className="primary-button dashboard-create" onClick={() => { setFormOpen(true); setFormError(null); }}>
-            Create new case
-          </button>
-          {loading ? <div className="case-list-loading" role="status"><div className="spinner" />Loading cases…</div> : null}
-          {!loading && !error && visibleCases.length === 0 ? (
-            <div className="empty-card case-empty">
-              <div className="empty-icon">CASE</div>
-              <h3>No cases yet</h3>
-              <p>Create a case to upload medical or KYC documents and keep their evidence and activity together.</p>
-            </div>
-          ) : null}
-          {!loading && !error && visibleCases.length > 0 ? (
-            <div className="case-list">
-              {visibleCases.map(({ case: item, document_count, last_activity_at }) => (
-                <article className="case-card" key={item.id}>
-                  <div className="case-card-main">
-                    <span className="tag info">{item.workflow_stage.replaceAll("_", " ")}</span>
-                    <h3>{item.applicant_display_name}</h3>
-                    <p className="case-card-id">{item.external_case_id}</p>
-                    <div className="case-card-details">
-                      <span><strong>Proposal</strong>{item.proposal_number}</span>
-                      <span><strong>Product</strong>{item.product_name}</span>
-                      <span><strong>Documents</strong>{document_count}</span>
-                      <span><strong>Last activity</strong>{new Date(last_activity_at).toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <button type="button" className="primary-button" onClick={() => onOpen(item.external_case_id)}>
-                    Open case
-                  </button>
-                </article>
-              ))}
-            </div>
-          ) : null}
-        </section>
+        {loading ? (
+          <div className="dashboard-loading" role="status"><div className="spinner" />Loading underwriting cases…</div>
+        ) : null}
+        {!loading && !error ? (
+          <>
+            <DashboardKpiCards cases={cases} activeStage={stageFilter} onSelectStage={selectStage} />
+            <UnderwritingQueue
+              cases={cases}
+              demoCase={demoCase}
+              demoCaseError={demoCaseError}
+              search={search}
+              stage={stageFilter}
+              slaLabel={slaFilter}
+              onSearchChange={setSearch}
+              onStageChange={setStageFilter}
+              onSlaLabelChange={setSlaFilter}
+              onClearFilters={clearFilters}
+              onOpen={onOpen}
+              onCreateCase={() => { setFormOpen(true); setFormError(null); }}
+            />
+          </>
+        ) : null}
       </main>
       <div className="live-region" aria-live="polite" aria-atomic="true">{notice}</div>
     </div>
@@ -1242,49 +1361,396 @@ function UnderwritingSection({
   );
 }
 
-function DocumentsSection({
+function DocumentReviewHeader({
   documents,
-  onUpload,
+  document,
+  history,
+  historyLoading,
+  historyError,
+  onSelect,
   onOpenSource,
   onRetry,
+  onRemove,
 }: {
   documents: DocumentSummary[];
-  onUpload: () => void;
+  document: DocumentSummary | null;
+  history: ExtractionHistory | null;
+  historyLoading: boolean;
+  historyError: string | null;
+  onSelect: (document: DocumentSummary) => void;
   onOpenSource: (document: DocumentSummary) => void;
   onRetry: (document: DocumentSummary) => void;
+  onRemove: (document: DocumentSummary) => void;
 }) {
   return (
-    <div className="workbench-section">
+    <section className="document-review-header card-section" aria-label="Selected document review">
       <div className="section-intro">
-        <div><span className="eyebrow">Case evidence</span><h2>Documents</h2><p>Uploaded files and their processing state.</p></div>
-        <button type="button" className="primary-button" onClick={onUpload}>Add document</button>
+        <div>
+          <span className="eyebrow">Document-level evidence</span>
+          <h2>Document Review</h2>
+          <p>Select a source to inspect its extracted fields, citations, and processing history.</p>
+        </div>
+        {documents.length ? (
+          <label className="document-select-control">
+            <span>Selected document</span>
+            <select
+              aria-label="Selected document"
+              value={document?.id ?? ""}
+              onChange={(event) => {
+                const next = documents.find((item) => item.id === event.target.value);
+                if (next) onSelect(next);
+              }}
+            >
+              {documents.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.filename} · {item.document_type.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
-      {documents.length ? (
-        <div className="document-list">
-          {documents.map((document) => (
-            <article className="document-item" key={document.id}>
-              <div className="document-icon">PDF</div>
-              <div className="document-details">
-                <h3>{document.filename}</h3>
-                <p>{document.document_type.replaceAll("_", " ")} · Version {document.version} · {document.page_count ?? "—"} pages</p>
-                <span className={`status-badge status-${document.status}`}>{document.status.replaceAll("_", " ")}</span>
+      {document ? (
+        <>
+          <div className="document-review-summary">
+            <div>
+              <strong>{document.filename}</strong>
+              <span>{document.document_type.replaceAll("_", " ")} · Version {document.version} · {document.page_count ?? "—"} pages</span>
+              <span className={`status-badge status-${document.status}`}>{document.status.replaceAll("_", " ")}</span>
+            </div>
+            <div className="document-actions">
+              <button type="button" className="secondary-button compact" onClick={() => onOpenSource(document)}>View source</button>
+              {document.status === "failed" ? (
+                <button type="button" className="text-button" onClick={() => onRetry(document)}>Retry processing</button>
+              ) : null}
+              <button type="button" className="danger-button compact" onClick={() => onRemove(document)}>Remove document</button>
+            </div>
+          </div>
+          <details className="extraction-history" open>
+            <summary>Extraction history</summary>
+            {historyLoading ? <p role="status">Loading extraction history…</p> : null}
+            {historyError ? <p role="alert" className="form-error">{historyError}</p> : null}
+            {!historyLoading && !historyError && history?.runs.length === 0 ? (
+              <p className="quiet-message">No extraction runs are available for this document yet.</p>
+            ) : null}
+            {history?.runs.length ? (
+              <ol className="history-list">
+                {history.runs.map(({ run, field_count, pending_fields, reviewed_fields }) => (
+                  <li key={run.id}>
+                    <div>
+                      <strong>Run {run.sequence}</strong>
+                      <span className={`status-badge status-${run.status}`}>{run.status.replaceAll("_", " ")}</span>
+                      <small>{new Date(run.started_at).toLocaleString()} · {run.provider} · {run.extractor_version}</small>
+                    </div>
+                    <p>{field_count} extracted fields · {pending_fields} pending · {reviewed_fields} reviewed</p>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+          </details>
+        </>
+      ) : (
+        <div className="section-empty-state">
+          <strong>No documents uploaded</strong>
+          <p>Add a document to review extracted fields and source citations.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DeleteDocumentDialog({
+  document: documentToRemove,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  document: DocumentSummary;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const busyRef = useRef(busy);
+  const cancelRef = useRef(onCancel);
+  busyRef.current = busy;
+  cancelRef.current = onCancel;
+  useEffect(() => {
+    cancelButton.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busyRef.current) cancelRef.current();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  return (
+    <div
+      className="drawer-backdrop delete-document-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onCancel();
+      }}
+    >
+      <section
+        className="delete-document-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-document-title"
+        aria-describedby="delete-document-warning"
+      >
+        <span className="eyebrow">Permanent action</span>
+        <h2 id="delete-document-title">Remove {documentToRemove.filename}?</h2>
+        <p id="delete-document-warning">
+          This permanently deletes the original file, extracted evidence, reviews, and extraction history.
+          A minimal audit event is retained. This cannot be undone.
+        </p>
+        {error ? <p role="alert" className="form-error">{error}</p> : null}
+        <div className="dialog-actions">
+          <button ref={cancelButton} type="button" className="secondary-button" disabled={busy} onClick={onCancel}>Cancel</button>
+          <button type="button" className="danger-button" disabled={busy} onClick={onConfirm}>
+            {busy ? "Removing…" : "Permanently remove"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function HitlReviewSection({
+  workspace,
+  documentType,
+  status,
+  documentNames,
+  onDocumentTypeChange,
+  onStatusChange,
+  onReview,
+  onCitation,
+  onSelectDocument,
+  onRetry,
+}: {
+  workspace: Workspace;
+  documentType: string;
+  status: string;
+  documentNames: Map<string, string>;
+  onDocumentTypeChange: (value: string) => void;
+  onStatusChange: (value: string) => void;
+  onReview: (field: EvidenceField) => void;
+  onCitation: (field: EvidenceField) => void;
+  onSelectDocument: (documentId: string) => void;
+  onRetry: (document: DocumentSummary) => void;
+}) {
+  const documentTypes = [...new Set(workspace.documents.map((document) => document.document_type))];
+  const fieldsById = new Map(workspace.fields.map((field) => [field.id, field]));
+  const documentsById = new Map(workspace.documents.map((document) => [document.id, document]));
+  const exceptions = workspace.case_review.exceptions.filter((item) => {
+    const matchesStatus = status === "all" || item.status === status;
+    const matchesType = documentType === "all" || item.document_ids.some(
+      (id) => documentsById.get(id)?.document_type === documentType,
+    );
+    return matchesStatus && matchesType;
+  });
+  const processingDocuments = workspace.documents.filter((document) =>
+    activeStatuses.has(document.status),
+  );
+
+  return (
+    <section className="workbench-section hitl-review-section">
+      <div className="section-intro">
+        <div><span className="eyebrow">Case-level human review</span><h2>HITL Review</h2><p>Exceptions are derived from extraction, validation, processing, and cross-document comparisons.</p></div>
+        <span className="tag warning">{workspace.case_review.open_flags} open flags</span>
+      </div>
+      <div className="case-review-metrics" aria-label="Case review summary">
+        <div><strong>{workspace.case_review.open_flags}</strong><span>Open flags</span></div>
+        <div><strong>{workspace.case_review.documents_analysed}</strong><span>Documents analysed</span></div>
+        <div><strong>{workspace.case_review.cross_document_conflicts}</strong><span>Cross-document conflicts</span></div>
+        <div><strong>{workspace.case_review.resolved_flags}</strong><span>Resolved flags</span></div>
+      </div>
+      {processingDocuments.length ? (
+        <div className="processing-notices">
+          <h3>Processing in progress</h3>
+          {processingDocuments.map((document) => (
+            <p key={document.id}>
+              <span className={`status-badge status-${document.status}`}>{document.status.replaceAll("_", " ")}</span>
+              {" "}{document.filename} is still processing. Its extracted results will appear here when the run completes.
+            </p>
+          ))}
+        </div>
+      ) : null}
+      <div className="hitl-filters">
+        <label>
+          Document type
+          <select aria-label="Filter by document type" value={documentType} onChange={(event) => onDocumentTypeChange(event.target.value)}>
+            <option value="all">All document types</option>
+            {documentTypes.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}
+          </select>
+        </label>
+        <label>
+          Review status
+          <select aria-label="Filter by review status" value={status} onChange={(event) => onStatusChange(event.target.value)}>
+            <option value="pending">Open / pending</option>
+            <option value="all">All statuses</option>
+            <option value="resolved">Resolved</option>
+            <option value="advisory">Advisory</option>
+          </select>
+        </label>
+      </div>
+      {exceptions.length ? (
+        <div className="case-exception-list">
+          {exceptions.map((exception) => (
+            <article className={`case-exception-card exception-${exception.status}`} key={exception.id}>
+              <div className="case-exception-heading">
+                <div><span className={`tag ${exception.severity === "error" ? "danger" : exception.severity === "info" ? "success" : "warning"}`}>{exception.category}</span><h3>{exception.title}</h3></div>
+                <span className={`status-badge status-${exception.status}`}>{exception.status}</span>
               </div>
-              <div className="document-actions">
-                <button type="button" className="secondary-button compact" onClick={() => onOpenSource(document)}>View source</button>
-                {document.status === "failed" ? <button type="button" className="text-button" onClick={() => onRetry(document)}>Retry processing</button> : null}
-              </div>
+              <p>{exception.message}</p>
+              {exception.document_ids.length ? (
+                <div className="exception-document-links">
+                  {exception.document_ids.map((id) => (
+                    <button type="button" className="text-button" key={id} onClick={() => onSelectDocument(id)}>
+                      {documentNames.get(id) ?? "Open source document"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {exception.field_ids.map((fieldId) => {
+                const field = fieldsById.get(fieldId);
+                if (!field) return null;
+                return (
+                  <div className="exception-field-row" key={field.id}>
+                    <span><strong>{field.label}:</strong> {formatEvidenceValue(field.effective_value)}</span>
+                    <div>
+                      {field.citations.length ? <button type="button" className="text-button" onClick={() => onCitation(field)}>Page {field.citations[0].page}</button> : null}
+                      {field.review_state === "pending" ? <button type="button" className="secondary-button compact" onClick={() => onReview(field)}>Review field</button> : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {exception.kind === "document" && exception.document_ids.some((id) => documentsById.get(id)?.status === "failed") ? (
+                <button type="button" className="secondary-button compact" onClick={() => {
+                  const failed = exception.document_ids.map((id) => documentsById.get(id)).find((item) => item?.status === "failed");
+                  if (failed) onRetry(failed);
+                }}>Retry processing</button>
+              ) : null}
             </article>
           ))}
         </div>
       ) : (
         <div className="section-empty-state">
-          <strong>No documents uploaded</strong>
-          <p>Upload a medical report or individual KYC document to start source-linked evidence extraction.</p>
-          <button type="button" className="primary-button" onClick={onUpload}>Add document</button>
+          <strong>{status === "pending" ? "No open review exceptions" : "No exceptions match these filters"}</strong>
+          <p>Advisory and completed items are available by changing the review-status filter.</p>
         </div>
       )}
-    </div>
+      <p className="data-note">Field corrections and decisions use the existing versioned, audited review flow. Additional facts remain source-only and are not independently reviewable.</p>
+    </section>
   );
+}
+
+function CaseEvidenceSection({
+  workspace,
+  documentNames,
+  onCitation,
+  onReview,
+  onSelectDocument,
+}: {
+  workspace: Workspace;
+  documentNames: Map<string, string>;
+  onCitation: (item: EvidenceField | AdditionalFact) => void;
+  onReview: (field: EvidenceField) => void;
+  onSelectDocument: (documentId: string) => void;
+}) {
+  const groupedFields = new Map<string, EvidenceField[]>();
+  for (const field of workspace.fields) {
+    const group = groupedFields.get(field.field_path) ?? [];
+    group.push(field);
+    groupedFields.set(field.field_path, group);
+  }
+  const conflictStatusByField = new Map<string, "pending" | "resolved">();
+  for (const exception of workspace.case_review.exceptions) {
+    if (exception.kind !== "cross_document_conflict") continue;
+    for (const fieldId of exception.field_ids) {
+      conflictStatusByField.set(fieldId, exception.status === "resolved" ? "resolved" : "pending");
+    }
+  }
+
+  return (
+    <section className="workbench-section case-evidence-section">
+      <div className="section-intro">
+        <div><span className="eyebrow">Cross-document evidence</span><h2>Case Evidence</h2><p>Values remain linked to their source document; no conflicting value is selected as authoritative.</p></div>
+        <span className="tag warning">{workspace.case_review.cross_document_conflicts} conflicts</span>
+      </div>
+      {!groupedFields.size && !workspace.additional_facts.length ? (
+        <div className="section-empty-state">
+          <strong>No extracted case evidence yet</strong>
+          <p>Evidence will be grouped here after documents have completed extraction.</p>
+        </div>
+      ) : null}
+      {[...groupedFields.entries()].map(([fieldPath, fields]) => {
+        const conflictStatuses = fields
+          .map((field) => conflictStatusByField.get(field.id))
+          .filter((status): status is "pending" | "resolved" => status !== undefined);
+        const conflict = conflictStatuses.length > 0;
+        const resolvedConflict = conflict && conflictStatuses.every((status) => status === "resolved");
+        return (
+          <section className="case-evidence-group card-section" key={fieldPath}>
+            <div className="section-heading">
+              <div><span className="eyebrow">{fields[0].ui_group}</span><h3>{fields[0].label}</h3><small>{fieldPath}</small></div>
+              <span className={`tag ${conflict ? resolvedConflict ? "success" : "warning" : "neutral"}`}>
+                {conflict ? resolvedConflict ? "Conflict reviewed · no source selected" : "Conflict · review sources" : `${fields.length} source${fields.length === 1 ? "" : "s"}`}
+              </span>
+            </div>
+            {fields.map((field) => (
+              <article className="case-evidence-value" key={field.id}>
+                <div>
+                  <strong>{formatEvidenceValue(field.candidate_value)}</strong>
+                  <span>{documentNames.get(field.document_id) ?? "Source document"} · {field.unit ?? field.data_type} · {field.review_state.replaceAll("_", " ")}</span>
+                  {formatEvidenceValue(field.effective_value) !== formatEvidenceValue(field.candidate_value) ? (
+                    <small>Reviewed value: {formatEvidenceValue(field.effective_value)}</small>
+                  ) : null}
+                  {field.latest_review?.rationale ? <small>Review rationale: {field.latest_review.rationale}</small> : null}
+                  {field.citations[0] ? <blockquote>{field.citations[0].excerpt}</blockquote> : null}
+                </div>
+                <div className="field-actions">
+                  <button type="button" className="text-button" onClick={() => onSelectDocument(field.document_id)}>Document</button>
+                  {field.citations.length ? <button type="button" className="text-button" onClick={() => onCitation(field)}>Page {field.citations[0].page}</button> : null}
+                  {field.review_state === "pending" ? <button type="button" className="text-button" onClick={() => onReview(field)}>Review</button> : null}
+                </div>
+              </article>
+            ))}
+          </section>
+        );
+      })}
+      {workspace.additional_facts.length ? (
+        <section className="case-evidence-group card-section">
+          <div className="section-heading"><div><span className="eyebrow">Source-only facts</span><h3>Additional extracted facts</h3></div></div>
+          {workspace.additional_facts.map((fact) => (
+            <article className="case-evidence-value" key={fact.id}>
+              <div>
+                <strong>{fact.name}: {formatEvidenceValue(fact.value)}</strong>
+                <span>{documentNames.get(fact.document_id) ?? "Source document"} · {fact.category} · {fact.extraction_status}</span>
+                {fact.citations[0] ? <blockquote>{fact.citations[0].excerpt}</blockquote> : null}
+              </div>
+              <div className="field-actions">
+                <button type="button" className="text-button" onClick={() => onSelectDocument(fact.document_id)}>Document</button>
+                {fact.citations.length ? <button type="button" className="text-button" onClick={() => onCitation(fact)}>Page {fact.citations[0].page}</button> : null}
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : null}
+      <p className="data-note">Conflicts are identified only for matching canonical field paths, compatible data types, and exactly matching units. Human review is required; the system does not choose a source of truth.</p>
+    </section>
+  );
+}
+
+function formatEvidenceValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Not found";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value);
 }
 
 function SimulatorSection({ workspace }: { workspace: Workspace }) {

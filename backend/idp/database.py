@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from idp.config import Settings
-from idp.models import Base, Case
+from idp.models import Base, Case, UnderwritingVariance
 
 
 class Database:
@@ -56,9 +56,7 @@ class Database:
         with self.engine.begin() as connection:
             inspector = inspect(connection)
             if inspector.has_table("extraction_runs"):
-                columns = {
-                    column["name"] for column in inspector.get_columns("extraction_runs")
-                }
+                columns = {column["name"] for column in inspector.get_columns("extraction_runs")}
                 if "configuration_checksum" not in columns:
                     connection.execute(
                         text(
@@ -72,12 +70,12 @@ class Database:
                         text("ALTER TABLE extraction_runs ADD COLUMN ai_analysis_json JSON")
                     )
             if inspector.has_table("cases"):
-                case_columns = {
-                    column["name"] for column in inspector.get_columns("cases")
-                }
+                case_columns = {column["name"] for column in inspector.get_columns("cases")}
                 if "created_by" not in case_columns:
+                    connection.execute(text("ALTER TABLE cases ADD COLUMN created_by VARCHAR(200)"))
+                if "is_demo" not in case_columns:
                     connection.execute(
-                        text("ALTER TABLE cases ADD COLUMN created_by VARCHAR(200)")
+                        text("ALTER TABLE cases ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT FALSE")
                     )
 
     @contextmanager
@@ -122,5 +120,87 @@ def seed_demo_case(db: Database, settings: Settings) -> Case:
             sla_label="2d 04h left",
         )
         session.add(demo_case)
+        session.flush()
+        return demo_case
+
+
+def seed_demo_variance_case(db: Database, settings: Settings) -> Case:
+    if settings.environment == "production" or settings.auth_mode != "demo":
+        raise ValueError(
+            "The variance demo case is only available in non-production demo auth mode."
+        )
+
+    external_case_id = "MMIL-DEMO-001"
+    with db.session() as session:
+        existing = session.scalar(
+            select(Case).where(
+                Case.tenant_id == settings.demo_tenant_id,
+                Case.external_case_id == external_case_id,
+            )
+        )
+        if existing is not None:
+            if not existing.is_demo:
+                raise ValueError("The reserved demo case ID belongs to a non-demo case.")
+            if (
+                session.scalar(
+                    select(UnderwritingVariance.id).where(
+                        UnderwritingVariance.tenant_id == settings.demo_tenant_id,
+                        UnderwritingVariance.case_id == existing.id,
+                        UnderwritingVariance.category == "premium",
+                    )
+                )
+                is None
+            ):
+                session.add(
+                    UnderwritingVariance(
+                        tenant_id=settings.demo_tenant_id,
+                        case_id=existing.id,
+                        category="premium",
+                        title="Premium Variance",
+                        applied_value=50000,
+                        suggested_value=60000,
+                        currency="INR",
+                        recommendation_source="DEMO – Simulated Approved Pricing Recommendation",
+                        recommendation_rationale=(
+                            "For demonstration purposes, the configured demo recommendation "
+                            "indicates a higher premium than the applicant's original applied "
+                            "premium. The underwriter must review the recommendation and record "
+                            "an outcome. This is not a real pricing calculation or insurance quote."
+                        ),
+                    )
+                )
+            return existing
+
+        demo_case = Case(
+            tenant_id=settings.demo_tenant_id,
+            external_case_id=external_case_id,
+            applicant_display_name="Ananya Sharma",
+            proposal_number="MMIL-DEMO-001",
+            product_name="Individual Life Insurance",
+            created_by=settings.demo_user_id,
+            is_demo=True,
+            workflow_stage="underwriting_variance_review",
+            sla_label="Demo only — not an SLA",
+        )
+        session.add(demo_case)
+        session.flush()
+        session.add(
+            UnderwritingVariance(
+                tenant_id=settings.demo_tenant_id,
+                case_id=demo_case.id,
+                category="premium",
+                title="Premium Variance",
+                applied_value=50000,
+                suggested_value=60000,
+                currency="INR",
+                recommendation_source="DEMO – Simulated Approved Pricing Recommendation",
+                recommendation_rationale=(
+                    "For demonstration purposes, the configured demo recommendation indicates "
+                    "a higher premium than the applicant's original applied premium. The "
+                    "underwriter must review the recommendation and record an outcome. This is "
+                    "not a real pricing calculation or insurance quote."
+                ),
+            )
+        )
         session.flush()
         return demo_case
