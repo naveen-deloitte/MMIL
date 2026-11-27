@@ -840,7 +840,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .queue-result-count { color: var(--gray-6); font-size: 10px; white-space: nowrap; }
 .queue-result-count strong { color: var(--gray-9); }
 .queue-demo-message { margin: 0 0 10px; color: var(--warning); font-size: 10px; }
-.queue-filter-bar { margin-bottom: 11px; padding: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 9px; border: 1px solid var(--gray-3); border-radius: 7px; background: var(--white); }
+.queue-filter-bar { margin-bottom: 11px; padding: 10px; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 9px; border: 1px solid var(--gray-3); border-radius: 7px; background: var(--white); }
 .queue-search { min-width: 220px; flex: 1 1 250px; position: relative; }
 .queue-search svg { position: absolute; top: 50%; left: 10px; width: 16px; height: 16px; transform: translateY(-50%); fill: none; stroke: var(--gray-6); stroke-width: 1.8; stroke-linecap: round; }
 .queue-search input, .queue-filter-select select { width: 100%; min-height: 34px; padding: 7px 9px; border: 1px solid var(--gray-3); border-radius: 5px; color: var(--gray-9); background: var(--white); font-size: 10px; }
@@ -849,7 +849,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .queue-filter-select { width: 150px; display: grid; gap: 3px; color: var(--gray-6); font-size: 9px; font-weight: 700; }
 .review-stage-filter { min-height: 34px; display: inline-flex; align-items: center; gap: 7px; color: var(--gray-7); font-size: 10px; white-space: nowrap; }
 .review-stage-filter input { width: 14px; height: 14px; accent-color: var(--info); }
-.clear-filters-button { padding: 6px 8px; border: 0; color: var(--info); background: transparent; font-size: 10px; font-weight: 700; }
+.clear-filters-button { min-height: 34px; padding: 6px 8px; border: 0; color: var(--info); background: transparent; font-size: 10px; font-weight: 700; }
 .clear-filters-button:hover { text-decoration: underline; }
 .queue-data-limitation, .queue-priority-note { color: var(--gray-6); font-size: 9px; line-height: 1.5; }
 .queue-data-limitation { margin: 0 0 10px; }

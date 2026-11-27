@@ -45,6 +45,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*Height\\s*[:\\-]\\s*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:cm|centimet(?:re|er)s?)[ \\t]*$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*Height[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit Height value as stated in the document.",
@@ -68,6 +71,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*Weight\\s*[:\\-]\\s*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*(?:kg|kilograms?)[ \\t]*$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*Weight[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit Weight value as stated in the document.",
@@ -91,6 +97,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:BMI|Body Mass Index)\\s*[:\\-]\\s*(?P<value>\\d{1,2}(?:\\.\\d+)?)(?:[ \\t]*(?:kg/m(?:2|²)))?"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:BMI|Body Mass Index)(?:[ \\t]*\\((?:calculated|reported)\\))?[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit BMI value as stated in the document.",
@@ -114,6 +123,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:Blood Pressure|BP)\\s*[:\\-]\\s*(?P<value>\\d{2,3}[ \\t]*/[ \\t]*\\d{2,3})(?:[ \\t]*mmHg)?[ \\t]*$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:Blood Pressure|BP)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{2,3}[ \\t]*/[ \\t]*\\d{2,3})[ \\t]*$"
         }
       ],
       "description": "Explicit Blood pressure value as stated in the document.",
@@ -137,6 +149,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:Pulse|Heart Rate)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3})(?:[ \\t]*(?:bpm|/min))?[ \\t]*$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:Pulse(?:[ \\t]+Rate)?|Heart Rate)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{2,3})[ \\t]*$"
         }
       ],
       "description": "Explicit Pulse value as stated in the document.",
@@ -160,6 +175,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:Respiratory Rate|Respiration Rate|Resp Rate|RR)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3})(?:[ \\t]*(?:breaths?[ \\t]*(?:/|per[ \\t]*)[ \\t]*min(?:ute)?|/min|rpm))?[ \\t]*$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:Respiratory Rate|Respiration Rate|Resp Rate|RR)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,3})[ \\t]*$"
         }
       ],
       "description": "Explicit respiratory rate value as stated in the document.",
@@ -330,6 +348,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:Fasting Blood Sugar|Fasting Glucose|FBS)[ \\t]*[:\\-]?[ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:Fasting Blood Sugar(?:[ \\t]*\\(FBS\\))?|Fasting Glucose|FBS)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit Fasting blood sugar value as stated in the document.",
@@ -353,6 +374,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:HbA1c|A1c)[ \\t]*[:\\-]?[ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)[ \\t]*%?"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:HbA1c|A1c)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit HbA1c value as stated in the document.",
@@ -376,6 +400,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:Total Cholesterol|Cholesterol Total)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:Total Cholesterol|Cholesterol Total)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{2,3}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit Total cholesterol value as stated in the document.",
@@ -399,6 +426,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:LDL(?: Cholesterol)?|LDL-C)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:LDL(?:[ \\t]+Cholesterol)?(?:[ \\t]*\\(Direct\\))?|LDL-C)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit LDL cholesterol value as stated in the document.",
@@ -422,6 +452,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:HDL(?: Cholesterol)?|HDL-C)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:HDL(?:[ \\t]+Cholesterol)?|HDL-C)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit HDL cholesterol value as stated in the document.",
@@ -445,6 +478,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*Triglycerides[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*Triglycerides[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit Triglycerides value as stated in the document.",
@@ -468,6 +504,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:SGOT(?: \\(AST\\))?|AST)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)(?:[ \\t]*U/L)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:SGOT(?:[ \\t]*\\(AST\\))?|AST)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit SGOT (AST) value as stated in the document.",
@@ -491,6 +530,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:SGPT(?: \\(ALT\\))?|ALT)[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)(?:[ \\t]*U/L)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:SGPT(?:[ \\t]*\\(ALT\\))?|ALT)[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,4}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit SGPT (ALT) value as stated in the document.",
@@ -514,6 +556,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*(?:Serum )?Creatinine[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)(?:[ \\t]*mg/dL)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*(?:Serum[ \\t]+)?Creatinine[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,2}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit Serum creatinine value as stated in the document.",
@@ -537,6 +582,9 @@
       "patterns": [
         {
           "regex": "(?im)^[ \\t]*eGFR[ \\t]*[:\\-][ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)(?:[ \\t]*mL/min(?:/1\\.73m(?:2|²))?)?(?:[ \\t]+.*)?$"
+        },
+        {
+          "regex": "(?im)^[ \\t]*eGFR(?:[ \\t]*\\(reported\\))?[ \\t]*\\r?\\n[ \\t]*(?P<value>\\d{1,3}(?:\\.\\d+)?)[ \\t]*$"
         }
       ],
       "description": "Explicit eGFR value as stated in the document.",

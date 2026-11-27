@@ -193,9 +193,14 @@ class AzureOpenAIProvider(OpenAICompatibleProvider):
         url = httpx.URL(self.endpoint)
         if url.query:
             raise ProcessingError("provider_endpoint_invalid", retryable=False)
-        self.endpoint = str(url.copy_add_param("api-version", settings.model_api_version))
         self.request_headers = {"api-key": self.api_key}
-        self.include_model_in_payload = False
+        if url.path.startswith("/openai/v1/"):
+            # Azure OpenAI v1 API: unversioned URL, deployment name sent as "model".
+            self.include_model_in_payload = True
+        else:
+            # Classic deployment-scoped URL: pinned api-version, deployment in the path.
+            self.endpoint = str(url.copy_add_param("api-version", settings.model_api_version))
+            self.include_model_in_payload = False
 
 
 class BedrockClaudeProvider:
@@ -367,7 +372,8 @@ def _system_prompt(definition: DocumentTypeDefinition) -> str:
         "statement is an object with text and citations; each citation contains page and an exact "
         "excerpt. Only vitals_summary may be null; key_medical_findings, recommendations, "
         "and major_vital_factors are arrays of cited statements. Keep at most 12 key findings, "
-        "8 recommendations, and 12 vital factors. lab_results is an array of at most 40 items; "
+        "8 recommendations, and 12 vital factors; give each statement 1 to 4 citations. "
+        "lab_results is an array of at most 80 items covering every reported test result; "
         "each item contains category, name, value, unit, reference_range, reported_flag, "
         "confidence, and citations. Category must be one of blood_sugar, lipid_profile, liver, "
         "renal, hematology, cardiac, urinalysis, or other. Copy reference ranges and flags only "
@@ -651,10 +657,34 @@ def _validate_ai_analysis(
     return result, None
 
 
+MAX_CITATIONS_PER_ITEM = 4
+MAX_LAB_RESULTS = 80
+MAX_KNOCKOUT_CHECKS = 20
+
+
+def _validate_items(value: Any, validator: Any, *, limit: int) -> list[dict[str, Any]]:
+    """Keep the valid items of a model-returned array, up to ``limit``.
+
+    A single malformed item must not discard an otherwise grounded section, so invalid
+    items are dropped individually rather than rejecting the whole array.
+    """
+    if not isinstance(value, list):
+        raise ValueError("AI section must be an array")
+    items: list[dict[str, Any]] = []
+    for item in value:
+        if len(items) >= limit:
+            break
+        try:
+            items.append(validator(item))
+        except (TypeError, ValueError):
+            continue
+    return items
+
+
 def _validate_statement_list(value: Any, *, limit: int) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or len(value) > limit:
-        raise ValueError("AI statements must be a bounded array")
-    return [_validate_statement(item, allow_null=False) for item in value]
+    return _validate_items(
+        value, lambda item: _validate_statement(item, allow_null=False), limit=limit
+    )
 
 
 def _validate_statement(value: Any, *, allow_null: bool) -> dict[str, Any] | None:
@@ -662,12 +692,10 @@ def _validate_statement(value: Any, *, allow_null: bool) -> dict[str, Any] | Non
         return None
     if (
         not isinstance(value, dict)
-        or set(value) != {"text", "citations"}
+        or not {"text", "citations"}.issubset(value)
         or not isinstance(value["text"], str)
         or not value["text"].strip()
         or len(value["text"]) > 2000
-        or not isinstance(value["citations"], list)
-        or not 1 <= len(value["citations"]) <= 4
     ):
         raise ValueError("AI statement is malformed or missing citations")
     return {
@@ -677,10 +705,12 @@ def _validate_statement(value: Any, *, allow_null: bool) -> dict[str, Any] | Non
 
 
 def _validate_citations(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or not 1 <= len(value) <= 4:
+    if not isinstance(value, list):
         raise ValueError("AI item must contain citations")
     citations: list[dict[str, Any]] = []
     for citation in value:
+        if len(citations) >= MAX_CITATIONS_PER_ITEM:
+            break
         if (
             not isinstance(citation, dict)
             or set(citation) != {"page", "excerpt"}
@@ -691,8 +721,10 @@ def _validate_citations(value: Any) -> list[dict[str, Any]]:
             or not citation["excerpt"].strip()
             or len(citation["excerpt"]) > 1000
         ):
-            raise ValueError("AI statement citation is malformed")
+            continue
         citations.append(citation)
+    if not citations:
+        raise ValueError("AI item must contain at least one valid citation")
     return citations
 
 
@@ -757,15 +789,11 @@ def _validate_knockout_check(value: Any) -> dict[str, Any]:
 
 
 def _validate_lab_results(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or len(value) > 40:
-        raise ValueError("AI lab results must be a bounded array")
-    return [_validate_lab_result(item) for item in value]
+    return _validate_items(value, _validate_lab_result, limit=MAX_LAB_RESULTS)
 
 
 def _validate_knockout_checks(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or len(value) > 20:
-        raise ValueError("AI knockout checks must be a bounded array")
-    return [_validate_knockout_check(item) for item in value]
+    return _validate_items(value, _validate_knockout_check, limit=MAX_KNOCKOUT_CHECKS)
 
 
 def _optional_text(value: Any) -> str | None:
