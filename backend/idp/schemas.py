@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -28,6 +29,10 @@ class CaseSummary(ApiModel):
     workflow_stage: str
     sla_label: str
     is_demo: bool = False
+    final_decision: str | None = None
+    decision_date: datetime | None = None
+    underwriter_subject: str | None = None
+    decision_rationale: str | None = None
 
 
 class UnderwritingVarianceDecisionIn(BaseModel):
@@ -50,6 +55,123 @@ class UnderwritingVarianceDecisionIn(BaseModel):
         if self.decision != "custom_value" and self.selected_value is not None:
             raise ValueError("A selected value is only allowed for a custom decision.")
         return self
+
+
+class UnderwritingDecisionIn(BaseModel):
+    decision: Literal["approve", "decline", "postpone", "refer"]
+    approved_sum_assured: Decimal | None = Field(
+        default=None, gt=0, max_digits=16, decimal_places=2
+    )
+    applicable_premium: Decimal | None = Field(default=None, gt=0, max_digits=16, decimal_places=2)
+    decision_rationale: str | None = Field(default=None, max_length=4000)
+    additional_terms: str | None = Field(default=None, max_length=4000)
+    decline_reason: str | None = Field(default=None, max_length=4000)
+    postponement_reason: str | None = Field(default=None, max_length=4000)
+    additional_requirements: str | None = Field(default=None, max_length=4000)
+    expected_reassessment_date: date | None = None
+    referral_reason: str | None = Field(default=None, max_length=4000)
+    target_authority: str | None = Field(default=None, max_length=200)
+    decision_notes: str | None = Field(default=None, max_length=4000)
+    supporting_document_ids: list[str] = Field(default_factory=list, max_length=100)
+    authority_reference: str = Field(default="", max_length=300)
+    guideline_reference: str = Field(default="", max_length=300)
+    authority_attested: bool = False
+    information_requests_acknowledged: bool = False
+
+    @field_validator(
+        "decision_rationale",
+        "additional_terms",
+        "decline_reason",
+        "postponement_reason",
+        "additional_requirements",
+        "referral_reason",
+        "target_authority",
+        "decision_notes",
+    )
+    @classmethod
+    def strip_decision_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @field_validator("authority_reference", "guideline_reference")
+    @classmethod
+    def strip_optional_references(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("supporting_document_ids")
+    @classmethod
+    def require_unique_supporting_documents(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("Supporting documents must be unique.")
+        return value
+
+    @model_validator(mode="after")
+    def validate_decision_fields(self) -> UnderwritingDecisionIn:
+        required_fields = {
+            "approve": ("approved_sum_assured", "applicable_premium", "decision_rationale"),
+            "decline": ("decline_reason",),
+            "postpone": (
+                "postponement_reason",
+                "additional_requirements",
+                "expected_reassessment_date",
+            ),
+            "refer": ("referral_reason", "target_authority"),
+        }[self.decision]
+        if any(getattr(self, name) is None for name in required_fields):
+            raise ValueError("The selected decision is missing required details.")
+        if (
+            self.decision == "postpone"
+            and self.expected_reassessment_date is not None
+            and self.expected_reassessment_date <= date.today()
+        ):
+            raise ValueError("The reassessment date must be in the future.")
+        return self
+
+
+class UnderwritingDecisionOut(ApiModel):
+    id: str
+    decision: Literal["approve", "decline", "postpone", "refer"]
+    approved_sum_assured: Decimal | None
+    applicable_premium: Decimal | None
+    decision_rationale: str
+    additional_terms: str | None
+    decline_reason: str | None
+    postponement_reason: str | None
+    additional_requirements: str | None
+    expected_reassessment_date: date | None
+    referral_reason: str | None
+    target_authority: str | None
+    decision_notes: str | None
+    supporting_document_ids: list[str]
+    authority_reference: str
+    guideline_reference: str
+    authority_attested: bool
+    information_requests_acknowledged: bool
+    underwriter_subject: str
+    decided_at: datetime
+
+
+class DecisionReadinessOut(BaseModel):
+    source_documents_total: int
+    source_documents_complete: bool
+    evidence_reviews_pending: int
+    evidence_review_complete: bool
+    pending_critical_flags: int
+    outstanding_information_requests: int | None
+    information_requests_tracked: bool
+    underwriting_guidelines_available: bool
+    authority_available: bool
+    mandatory_prerequisites_met: bool
+    underwriter_subject: str
+    demo_case: bool
+
+
+class UnderwritingDecisionHistoryOut(BaseModel):
+    case: CaseSummary
+    readiness: DecisionReadinessOut
+    decisions: list[UnderwritingDecisionOut] = Field(default_factory=list)
 
 
 class UnderwritingVarianceDecisionOut(ApiModel):

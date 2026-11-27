@@ -10,6 +10,8 @@ import type {
   ReviewPayload,
   UnderwritingVarianceDecisionInput,
   UnderwritingVarianceWorkspace,
+  UnderwritingDecisionHistory,
+  UnderwritingDecisionInput,
   Workspace,
 } from "./types";
 
@@ -61,6 +63,26 @@ export function loadCases(): Promise<CaseListItem[]> {
 export function loadUnderwritingVariances(caseId: string): Promise<UnderwritingVarianceWorkspace> {
   return request<UnderwritingVarianceWorkspace>(
     `/api/v1/cases/${encodeURIComponent(caseId)}/underwriting-variances`,
+  );
+}
+
+export function loadUnderwritingDecisionHistory(caseId: string): Promise<UnderwritingDecisionHistory> {
+  return request<UnderwritingDecisionHistory>(
+    `/api/v1/cases/${encodeURIComponent(caseId)}/underwriting-decisions`,
+  );
+}
+
+export function submitUnderwritingDecision(
+  caseId: string,
+  payload: UnderwritingDecisionInput,
+): Promise<UnderwritingDecisionHistory> {
+  return request<UnderwritingDecisionHistory>(
+    `/api/v1/cases/${encodeURIComponent(caseId)}/underwriting-decisions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
   );
 }
 

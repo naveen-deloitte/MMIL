@@ -25,6 +25,8 @@ _ALLOWED_METADATA_KEYS = {
     "failure_stage",
     "rejected_provider_items",
     "provider_item_rejections",
+    "decision_id",
+    "workflow_stage",
 }
 
 

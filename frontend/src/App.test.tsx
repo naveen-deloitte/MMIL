@@ -159,13 +159,12 @@ describe("focused workbench", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Underwriting Workbench" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Underwriting Queue" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My Cases" })).toBeInTheDocument();
     const workloadKpis = screen.getByRole("region", { name: "Underwriting workload summary" });
-    expect(within(workloadKpis).getAllByText("1")).toHaveLength(3);
-    expect(within(workloadKpis).getByText("0")).toBeInTheDocument();
-    expect(screen.getByText("human review")).toBeInTheDocument();
-    expect(screen.queryByText("Cases by stage")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Open case" }));
+    expect(within(workloadKpis).getByRole("button", { name: /Under Review/ })).toHaveTextContent("1");
+    expect(within(workloadKpis).getByRole("button", { name: /Awaiting Information/ })).toHaveTextContent("0");
+    expect(within(screen.getByRole("table")).getByText("Under Review")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue review Dummy-Dummy-29495" }));
 
     expect(await screen.findByRole("heading", { name: /Dummy - Dummy/ })).toBeInTheDocument();
     expect(window.location.search).toContain("case=Dummy-Dummy-29495");
@@ -252,6 +251,7 @@ describe("focused workbench", () => {
       external_case_id: "UW-002",
       applicant_display_name: "Priya Example",
       proposal_number: "PROP-002",
+      product_name: "Term Plan",
       workflow_stage: "awaiting_documents",
       sla_label: "1d left",
     };
@@ -266,14 +266,123 @@ describe("focused workbench", () => {
     const table = screen.getByRole("table");
     expect(within(table).getAllByRole("row")).toHaveLength(3);
 
-    await user.type(screen.getByRole("textbox", { name: "Search applicant, case ID, or proposal number" }), "UW-002");
+    await user.click(screen.getByRole("tab", { name: /Awaiting Information/ }));
+    await user.type(screen.getByRole("textbox", { name: "Search applicant, case ID, or policy/application number" }), "UW-002");
     expect(within(table).getAllByRole("row")).toHaveLength(2);
     expect(within(table).getByText("Priya Example")).toBeInTheDocument();
     expect(within(table).queryByText("Dummy - Dummy")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await user.click(screen.getByRole("button", { name: /Filters/ }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Filter by product type" }), "Term Plan");
+    expect(within(table).getByText("Priya Example")).toBeInTheDocument();
+    expect(within(table).getAllByRole("row")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "Clear all filters" }));
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(within(table).getByText("Dummy - Dummy")).toBeInTheDocument();
+  });
+
+  it("uses exclusive workflow statuses for KPI filters and keeps resolved decision details accessible", async () => {
+    window.history.replaceState({}, "", "/");
+    const cases = [
+      { ...workspace.case, id: "case-new", external_case_id: "UW-NEW", workflow_stage: "assigned" },
+      { ...workspace.case, id: "case-review", external_case_id: "UW-REVIEW", workflow_stage: "human_review" },
+      {
+        ...workspace.case,
+        id: "case-resolved",
+        external_case_id: "UW-RESOLVED",
+        workflow_stage: "resolved",
+        final_decision: "Approved",
+        decision_date: "2026-08-15T12:00:00Z",
+        underwriter_subject: "underwriter@example.test",
+        decision_rationale: "All required evidence reviewed.",
+      },
+      { ...workspace.case, id: "case-pending", external_case_id: "UW-PENDING", workflow_stage: "pending" },
+      { ...workspace.case, id: "case-awaiting", external_case_id: "UW-AWAITING", workflow_stage: "awaiting_documents" },
+      { ...workspace.case, id: "case-escalated", external_case_id: "UW-HILT", workflow_stage: "hilt_escalated" },
+    ];
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/v1/cases") {
+        return new Response(JSON.stringify(cases.map((item) => ({
+          case: item,
+          document_count: 0,
+          last_activity_at: "2026-08-14T10:00:02Z",
+        }))), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return workspaceResponse(input, workspace);
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText("UW-NEW");
+    expect(screen.queryByRole("tab", { name: /HILT \/ Escalated/ })).not.toBeInTheDocument();
+    const workloadKpis = screen.getByRole("region", { name: "Underwriting workload summary" });
+    for (const label of ["New / Assigned", "Under Review", "Resolved", "Awaiting Information"]) {
+      expect(within(workloadKpis).getByRole("button", { name: new RegExp(label) })).toHaveTextContent("1");
+    }
+    expect(within(workloadKpis).getByRole("button", { name: /Pending/ })).toHaveTextContent("2");
+    expect(within(workloadKpis).getByText("6")).toBeInTheDocument();
+
+    const table = screen.getByRole("table");
+    const kpiCases = [
+      ["New / Assigned", "UW-NEW"],
+      ["Under Review", "UW-REVIEW"],
+      ["Pending", "UW-PENDING"],
+      ["Awaiting Information", "UW-AWAITING"],
+      ["Resolved", "UW-RESOLVED"],
+    ] as const;
+    for (const [label, caseId] of kpiCases) {
+      const card = within(workloadKpis).getByRole("button", { name: new RegExp(label) });
+      await user.click(card);
+      expect(within(table).getByText(caseId)).toBeInTheDocument();
+      expect(within(table).getAllByRole("row")).toHaveLength(label === "Pending" ? 3 : 2);
+      if (label === "Pending") expect(within(table).getByText("UW-HILT")).toBeInTheDocument();
+      await user.click(card);
+    }
+
+    await user.click(within(workloadKpis).getByRole("button", { name: /Resolved/ }));
+    expect(screen.getByText("UW-RESOLVED")).toBeInTheDocument();
+    expect(within(table).queryByText("UW-AWAITING")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Decision details"));
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(screen.getByText("underwriter@example.test")).toBeInTheDocument();
+    expect(screen.getByText("All required evidence reviewed.")).toBeInTheDocument();
+    await user.click(within(workloadKpis).getByRole("button", { name: /Pending/ }));
+    expect(screen.getByText("UW-HILT")).toBeInTheDocument();
+    expect(screen.queryByText("UW-RESOLVED")).not.toBeInTheDocument();
+  });
+
+  it("sorts and paginates filtered cases", async () => {
+    window.history.replaceState({}, "", "/");
+    const cases = Array.from({ length: 12 }, (_, index) => ({
+      ...workspace.case,
+      id: `case-${index}`,
+      external_case_id: `UW-${String(index + 1).padStart(2, "0")}`,
+      applicant_display_name: `Applicant ${String(12 - index).padStart(2, "0")}`,
+      workflow_stage: "human_review",
+    }));
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/v1/cases") {
+        return new Response(JSON.stringify(cases.map((item) => ({
+          case: item,
+          document_count: 0,
+          last_activity_at: "2026-08-14T10:00:02Z",
+        }))), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return workspaceResponse(input, workspace);
+    }));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByText("UW-01");
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("row")).toHaveLength(11);
+    await user.click(screen.getByRole("button", { name: "Sort by Applicant Name" }));
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Applicant 01");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getByText("UW-02")).toBeInTheDocument();
   });
 
   it("keeps the case-list error and retry action visible when loading fails", async () => {
@@ -385,9 +494,9 @@ describe("focused workbench", () => {
     expect(within(demoRow).getByText("Demo · simulated")).toBeInTheDocument();
     expect(within(demoRow).getByText("MMIL-DEMO-001")).toBeInTheDocument();
     const workloadKpis = screen.getByRole("region", { name: "Underwriting workload summary" });
-    expect(within(workloadKpis).getAllByText("0")).toHaveLength(4);
+    expect(within(workloadKpis).getAllByText("0")).toHaveLength(6);
     await user.click(within(demoRow).getByRole("button", {
-      name: "Open demo case MMIL-DEMO-001",
+      name: "Continue review MMIL-DEMO-001",
     }));
     expect(await screen.findByRole("heading", { name: "Ananya Sharma" })).toBeInTheDocument();
     expect(screen.getByText("DEMO · SIMULATED DATA")).toBeInTheDocument();
@@ -740,6 +849,26 @@ describe("focused workbench", () => {
       if (url.includes("/audit")) {
         return new Response(JSON.stringify({ items: [], next_offset: null }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
+      if (url.endsWith("/underwriting-decisions")) {
+        return new Response(JSON.stringify({
+          case: workspace.case,
+          readiness: {
+            source_documents_total: 1,
+            source_documents_complete: false,
+            evidence_reviews_pending: 1,
+            evidence_review_complete: false,
+            pending_critical_flags: 1,
+            outstanding_information_requests: null,
+            information_requests_tracked: false,
+            underwriting_guidelines_available: false,
+            authority_available: true,
+            mandatory_prerequisites_met: false,
+            underwriter_subject: "reviewer-demo",
+            demo_case: false,
+          },
+          decisions: [],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
       return workspaceResponse(input, workspace);
     }));
     const user = userEvent.setup();
@@ -766,10 +895,206 @@ describe("focused workbench", () => {
     expect(screen.getByText(/Approved product rates, coverage inputs, and underwriting rules are not connected/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^Decision$/ }));
     expect(screen.getByText("No decision recorded")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Final underwriting decision" })).toBeInTheDocument();
+    expect(screen.getByText("Outstanding information requests")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review and confirm decision" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /^Ask AI$/ }));
     expect(screen.getByRole("heading", { name: "Case chat is not connected" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^Audit$/ }));
     expect(await screen.findByText("No audit events are available.")).toBeInTheDocument();
+  });
+
+  it("keeps decisions to the supported outcomes and confirms the required details before recording", async () => {
+    const readyWorkspace: Workspace = {
+      ...workspace,
+      documents: [{ ...workspace.documents[0], status: "completed" }],
+      runs: [{
+        ...workspace.runs[0],
+        provider: "test-ai",
+        ai_analysis: {
+          summary: {
+            text: "The source report records a relevant medical history.",
+            citations: [{
+              document_id: "doc-1",
+              document_version: 1,
+              page: 1,
+              excerpt: "Relevant medical history",
+              bbox: null,
+            }],
+          },
+          key_medical_findings: [],
+          recommendations: [],
+          vitals_summary: null,
+          major_vital_factors: [],
+          lab_results: [],
+          knockout_checks: [],
+        },
+      }],
+      counts: { ...workspace.counts, pending: 0 },
+      case_review: {
+        ...workspace.case_review,
+        open_flags: 0,
+        exceptions: [],
+      },
+    };
+    const readiness = {
+      source_documents_total: 1,
+      source_documents_complete: true,
+      evidence_reviews_pending: 0,
+      evidence_review_complete: true,
+      pending_critical_flags: 0,
+      outstanding_information_requests: null,
+      information_requests_tracked: false,
+      underwriting_guidelines_available: false,
+      authority_available: true,
+      mandatory_prerequisites_met: true,
+      underwriter_subject: "reviewer-demo",
+      demo_case: false,
+    };
+    const history = {
+      case: readyWorkspace.case,
+      readiness,
+      decisions: [],
+    };
+    let submittedPayload: Record<string, unknown> | null = null;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/v1/cases") {
+        return new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.endsWith("/underwriting-decisions") && init?.method === "POST") {
+        submittedPayload = JSON.parse(String(init.body)) as Record<string, unknown>;
+        const decision = {
+          id: "final-decision-1",
+          decision: "approve",
+          approved_sum_assured: "1000000.00",
+          applicable_premium: "12000.00",
+          decision_rationale: "Reviewed the available evidence.",
+          additional_terms: "Standard terms.",
+          decline_reason: null,
+          postponement_reason: null,
+          additional_requirements: null,
+          expected_reassessment_date: null,
+          referral_reason: null,
+          target_authority: null,
+          decision_notes: null,
+          supporting_document_ids: [],
+          authority_reference: "Delegated authority v3",
+          guideline_reference: "Product guide v4",
+          authority_attested: true,
+          information_requests_acknowledged: true,
+          underwriter_subject: "reviewer-demo",
+          decided_at: "2026-11-28T00:00:00Z",
+        };
+        return new Response(JSON.stringify({
+          ...history,
+          case: { ...readyWorkspace.case, workflow_stage: "resolved" },
+          decisions: [decision],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.endsWith("/underwriting-decisions")) {
+        return new Response(JSON.stringify(history), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return workspaceResponse(input, readyWorkspace);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Underwriting Assessment" }));
+    await user.click(screen.getByRole("button", { name: /^Decision$/ }));
+    await screen.findByText("No decision recorded");
+    expect(screen.queryByRole("radio", { name: "Refer / Escalate" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Product guideline reference")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Delegated authority reference")).not.toBeInTheDocument();
+    expect(screen.queryByText("Attach supporting evidence (optional)")).not.toBeInTheDocument();
+    const caseContext = screen.getByRole("group", { name: "Auto-filled case details" });
+    expect(caseContext).toHaveTextContent("Dummy - Dummy");
+    expect(caseContext).toHaveTextContent("reviewer-demo");
+    expect(screen.getByRole("radio", { name: "Approve" })).not.toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Approve" }));
+    expect(screen.getByLabelText("Approved sum assured")).toHaveValue(null);
+    expect(screen.getByLabelText("Applicable premium")).toHaveValue(null);
+    await user.type(screen.getByLabelText("Approved sum assured"), "1000000");
+    await user.type(screen.getByLabelText("Applicable premium"), "12000");
+    const rationaleInput = screen.getByLabelText("Decision rationale");
+    expect(rationaleInput).toHaveValue(
+      "AI evidence summary (review and tailor to your decision):\nsynthetic-report.pdf: The source report records a relevant medical history. (Source p. 1)",
+    );
+    await user.clear(rationaleInput);
+    await user.type(rationaleInput, "Reviewed the available evidence.");
+    await user.click(screen.getByRole("button", { name: "Review and confirm decision" }));
+
+    expect(screen.getByRole("heading", { name: "Confirm final decision" })).toBeInTheDocument();
+    expect(screen.getAllByText("Dummy - Dummy")).toHaveLength(2);
+    expect(screen.getByText("Reviewed the available evidence.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm and record decision" })).toBeDisabled();
+    await user.click(screen.getByLabelText(/I have reviewed this summary and confirm/));
+    await user.click(screen.getByRole("button", { name: "Confirm and record decision" }));
+
+    expect(await screen.findByText("Final underwriting decision recorded and added to the case history.")).toBeInTheDocument();
+    expect(submittedPayload).toMatchObject({
+      decision: "approve",
+      approved_sum_assured: "1000000",
+      applicable_premium: "12000",
+    });
+    expect(submittedPayload).not.toHaveProperty("authority_reference");
+    expect(submittedPayload).not.toHaveProperty("guideline_reference");
+    expect(submittedPayload).not.toHaveProperty("supporting_document_ids");
+    await user.click(screen.getByText("Decision history (1)"));
+    expect(screen.getByText("Latest")).toBeInTheDocument();
+  });
+
+  it("allows reviewing completed decision fields but keeps recording locked when readiness is incomplete", async () => {
+    const blockedReadiness = {
+      source_documents_total: 1,
+      source_documents_complete: true,
+      evidence_reviews_pending: 1,
+      evidence_review_complete: false,
+      pending_critical_flags: 1,
+      outstanding_information_requests: null,
+      information_requests_tracked: false,
+      underwriting_guidelines_available: false,
+      authority_available: true,
+      mandatory_prerequisites_met: false,
+      underwriter_subject: "reviewer-demo",
+      demo_case: false,
+    };
+    const history = { case: workspace.case, readiness: blockedReadiness, decisions: [] };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/v1/cases") {
+        return new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.endsWith("/underwriting-decisions")) {
+        return new Response(JSON.stringify(history), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return workspaceResponse(input, workspace);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Underwriting Assessment" }));
+    await user.click(screen.getByRole("button", { name: /^Decision$/ }));
+    await screen.findByText("No decision recorded");
+    await user.click(screen.getByRole("radio", { name: "Decline" }));
+    await user.type(screen.getByLabelText("Reason for decline"), "Decision rationale based on reviewed evidence.");
+    const reviewButton = screen.getByRole("button", { name: "Review and confirm decision" });
+    expect(reviewButton).toBeEnabled();
+    await user.click(reviewButton);
+
+    expect(screen.getByText("Recording is locked until case readiness is complete.")).toBeInTheDocument();
+    expect(screen.getByText("Review 1 pending evidence field(s).")).toBeInTheDocument();
+    expect(screen.getByText("Resolve 1 critical finding(s).")).toBeInTheDocument();
+    const recordButton = screen.getByRole("button", { name: "Confirm and record decision" });
+    expect(recordButton).toBeDisabled();
+    await user.click(screen.getByLabelText(/I have reviewed this summary and confirm/));
+    expect(recordButton).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/underwriting-decisions"),
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("groups case evidence and explicitly marks backend-reported conflicts", async () => {

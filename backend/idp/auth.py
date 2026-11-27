@@ -16,6 +16,7 @@ PERMISSIONS: dict[str, set[str]] = {
     "upload": {"operator", "reviewer", "administrator"},
     "retry": {"operator", "reviewer", "administrator"},
     "review": {"reviewer", "administrator"},
+    "underwriting_decision": {"reviewer", "administrator"},
     "audit": {"reviewer", "administrator", "auditor"},
     "admin": {"administrator"},
 }
@@ -30,9 +31,11 @@ class Principal:
     is_demo: bool = False
 
     def require(self, permission: str) -> None:
-        allowed = PERMISSIONS.get(permission, set())
-        if not self.roles.intersection(allowed):
+        if not self.has_permission(permission):
             raise AppError(403, "forbidden", "Forbidden", "You are not authorized for this action.")
+
+    def has_permission(self, permission: str) -> bool:
+        return bool(self.roles.intersection(PERMISSIONS.get(permission, set())))
 
     def require_case(self, external_case_id: str) -> None:
         if "*" not in self.case_ids and external_case_id not in self.case_ids:

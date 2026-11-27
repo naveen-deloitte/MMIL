@@ -22,6 +22,14 @@ export interface CaseSummary {
   product_name: string;
   workflow_stage: string;
   sla_label: string;
+  assigned_at?: string | null;
+  resolved_at?: string | null;
+  priority?: string | null;
+  sla_status?: string | null;
+  final_decision?: string | null;
+  decision_date?: string | null;
+  underwriter_subject?: string | null;
+  decision_rationale?: string | null;
   is_demo?: boolean;
 }
 
@@ -249,6 +257,70 @@ export interface Workspace {
   additional_facts: AdditionalFact[];
   counts: EvidenceCounts;
   case_review: CaseReviewSummary;
+}
+
+export type UnderwritingDecisionType = "approve" | "decline" | "postpone" | "refer";
+
+export interface UnderwritingDecisionReadiness {
+  source_documents_total: number;
+  source_documents_complete: boolean;
+  evidence_reviews_pending: number;
+  evidence_review_complete: boolean;
+  pending_critical_flags: number;
+  outstanding_information_requests: number | null;
+  information_requests_tracked: boolean;
+  underwriting_guidelines_available: boolean;
+  authority_available: boolean;
+  mandatory_prerequisites_met: boolean;
+  underwriter_subject: string;
+  demo_case: boolean;
+}
+
+export interface UnderwritingDecisionRecord {
+  id: string;
+  decision: UnderwritingDecisionType;
+  approved_sum_assured: string | number | null;
+  applicable_premium: string | number | null;
+  decision_rationale: string;
+  additional_terms: string | null;
+  decline_reason: string | null;
+  postponement_reason: string | null;
+  additional_requirements: string | null;
+  expected_reassessment_date: string | null;
+  referral_reason: string | null;
+  target_authority: string | null;
+  decision_notes: string | null;
+  supporting_document_ids: string[];
+  authority_reference: string;
+  guideline_reference: string;
+  underwriter_subject: string;
+  decided_at: string;
+}
+
+export interface UnderwritingDecisionHistory {
+  case: CaseSummary;
+  readiness: UnderwritingDecisionReadiness;
+  decisions: UnderwritingDecisionRecord[];
+}
+
+export interface UnderwritingDecisionInput {
+  decision: UnderwritingDecisionType;
+  approved_sum_assured?: string;
+  applicable_premium?: string;
+  decision_rationale?: string;
+  additional_terms?: string;
+  decline_reason?: string;
+  postponement_reason?: string;
+  additional_requirements?: string;
+  expected_reassessment_date?: string;
+  referral_reason?: string;
+  target_authority?: string;
+  decision_notes?: string;
+  supporting_document_ids?: string[];
+  authority_reference?: string;
+  guideline_reference?: string;
+  authority_attested?: boolean;
+  information_requests_acknowledged?: boolean;
 }
 
 export interface CaseReviewException {

@@ -12,7 +12,8 @@ import {
   uploadDocument,
 } from "./api";
 import { advisoryNotes, isAutoAccepted } from "./advisory";
-import { DashboardKpiCards, UnderwritingQueue } from "./components/DashboardWorkload";
+import { DashboardWorkload } from "./components/DashboardWorkload";
+import { UnderwritingDecisionCockpit } from "./components/UnderwritingDecisionCockpit";
 import {
   DemoCaseWorkspace,
   UnderwritingVarianceReview,
@@ -722,6 +723,7 @@ export default function App() {
                     onReview={() => setActiveSection("HITL Review")}
                     onRequirements={() => setReviewDrawerOpen(true)}
                     onOpenAssessment={() => setActiveSection("Document Review")}
+                    onDecisionRecorded={() => { void refresh(true); void refreshCases(); }}
                   />
                 ) : null}
                 {assessmentView === "Simulator" ? <SimulatorSection workspace={workspace} /> : null}
@@ -841,9 +843,6 @@ function CasesHome({
   });
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [slaFilter, setSlaFilter] = useState("all");
   const refreshedAt = useMemo(
     () => (loading || error ? null : new Date()),
     [cases, error, loading],
@@ -864,18 +863,6 @@ function CasesHome({
 
   function updateField(field: keyof CaseCreateInput, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  function clearFilters() {
-    setSearch("");
-    setStageFilter("all");
-    setSlaFilter("all");
-  }
-
-  function selectStage(stage: string) {
-    setSearch("");
-    setSlaFilter("all");
-    setStageFilter(stage);
   }
 
   return (
@@ -987,23 +974,13 @@ function CasesHome({
           <div className="dashboard-loading" role="status"><div className="spinner" />Loading underwriting cases…</div>
         ) : null}
         {!loading && !error ? (
-          <>
-            <DashboardKpiCards cases={cases} activeStage={stageFilter} onSelectStage={selectStage} />
-            <UnderwritingQueue
-              cases={cases}
-              demoCase={demoCase}
-              demoCaseError={demoCaseError}
-              search={search}
-              stage={stageFilter}
-              slaLabel={slaFilter}
-              onSearchChange={setSearch}
-              onStageChange={setStageFilter}
-              onSlaLabelChange={setSlaFilter}
-              onClearFilters={clearFilters}
-              onOpen={onOpen}
-              onCreateCase={() => { setFormOpen(true); setFormError(null); }}
-            />
-          </>
+          <DashboardWorkload
+            cases={cases}
+            demoCase={demoCase}
+            demoCaseError={demoCaseError}
+            onOpen={onOpen}
+            onCreateCase={() => { setFormOpen(true); setFormError(null); }}
+          />
         ) : null}
       </main>
       <div className="live-region" aria-live="polite" aria-atomic="true">{notice}</div>
@@ -1780,37 +1757,22 @@ function DecisionSection({
   onReview,
   onRequirements,
   onOpenAssessment,
+  onDecisionRecorded,
 }: {
   workspace: Workspace;
   onReview: () => void;
   onRequirements: () => void;
   onOpenAssessment: () => void;
+  onDecisionRecorded: () => void;
 }) {
-  const pending = workspace.counts.pending;
   return (
-    <div className="workbench-section">
-      <div className="section-intro"><div><span className="eyebrow">Human-in-the-loop</span><h2>Decision</h2><p>Review readiness and outstanding evidence before any decision is made.</p></div><span className="tag warning">No decision recorded</span></div>
-      <div className="overview-profile-grid">
-        <section className="card-section">
-          <div className="section-heading"><h3>Decision readiness</h3></div>
-          <ul className="check-list overview-checklist">
-            <li><span className={workspace.documents.length ? "complete-mark" : "pending-mark"}>{workspace.documents.length ? "✓" : "!"}</span><div><strong>Source documents</strong><small>{workspace.documents.length} uploaded</small></div></li>
-            <li><span className={pending ? "pending-mark" : "complete-mark"}>{pending ? "!" : "✓"}</span><div><strong>Candidate field review</strong><small>{pending} pending review</small></div></li>
-            <li><span className="pending-mark">!</span><div><strong>Underwriting authority and product rules</strong><small>Not connected to this workspace</small></div></li>
-          </ul>
-        </section>
-        <section className="card-section">
-          <div className="section-heading"><h3>Available actions</h3></div>
-          <p className="quiet-message">The connected service supports evidence review, document management and audit. It does not record an underwriting disposition.</p>
-          <div className="overview-action-list">
-            <button type="button" className="secondary-button" onClick={onReview}>Review evidence{pending ? ` (${pending})` : ""}</button>
-            <button type="button" className="secondary-button" onClick={onRequirements}>Request or manage evidence</button>
-            <button type="button" className="secondary-button" onClick={onOpenAssessment}>Review AI assessment</button>
-          </div>
-        </section>
-      </div>
-      <div className="callout amber">No approval, decline, loading, or customer offer is recorded from this screen.</div>
-    </div>
+    <UnderwritingDecisionCockpit
+      workspace={workspace}
+      onReview={onReview}
+      onRequirements={onRequirements}
+      onOpenAssessment={onOpenAssessment}
+      onDecisionRecorded={onDecisionRecorded}
+    />
   );
 }
 

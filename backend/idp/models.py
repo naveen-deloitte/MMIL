@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     Float,
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -118,6 +121,36 @@ class UnderwritingVarianceDecision(Base):
     approval_status: Mapped[str] = mapped_column(String(30), nullable=False)
     is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     reviewed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+
+
+class UnderwritingDecision(Base):
+    __tablename__ = "underwriting_decisions"
+    __table_args__ = (
+        Index("ix_underwriting_decision_history", "tenant_id", "case_id", "decided_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    decision: Mapped[str] = mapped_column(String(30), nullable=False)
+    approved_sum_assured: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    applicable_premium: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    decision_rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    additional_terms: Mapped[str | None] = mapped_column(Text)
+    decline_reason: Mapped[str | None] = mapped_column(Text)
+    postponement_reason: Mapped[str | None] = mapped_column(Text)
+    additional_requirements: Mapped[str | None] = mapped_column(Text)
+    expected_reassessment_date: Mapped[date | None] = mapped_column(Date)
+    referral_reason: Mapped[str | None] = mapped_column(Text)
+    target_authority: Mapped[str | None] = mapped_column(String(200))
+    decision_notes: Mapped[str | None] = mapped_column(Text)
+    supporting_document_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    authority_reference: Mapped[str] = mapped_column(String(300), nullable=False)
+    guideline_reference: Mapped[str] = mapped_column(String(300), nullable=False)
+    authority_attested: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    information_requests_acknowledged: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    underwriter_subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
 
 
 class Document(Base):

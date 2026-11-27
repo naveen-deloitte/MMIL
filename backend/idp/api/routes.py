@@ -13,6 +13,7 @@ from idp.errors import AppError, ProcessingError
 from idp.models import (
     Case,
     Document,
+    UnderwritingDecision,
     UnderwritingVariance,
     UnderwritingVarianceDecision,
 )
@@ -29,6 +30,8 @@ from idp.schemas import (
     HealthOut,
     ReviewRequest,
     ReviewResponse,
+    UnderwritingDecisionHistoryOut,
+    UnderwritingDecisionIn,
     UnderwritingVarianceDecisionIn,
     UnderwritingVarianceOut,
     UnderwritingVarianceWorkspaceOut,
@@ -38,6 +41,10 @@ from idp.schemas import (
 from idp.services.ingestion import find_case, ingest_document
 from idp.services.processing import retry_document
 from idp.services.reviews import ReviewInput, review_fields
+from idp.services.underwriting_decisions import (
+    build_decision_history,
+    record_underwriting_decision,
+)
 from idp.services.workspace import (
     audit_page,
     build_workspace,
@@ -228,9 +235,35 @@ def list_cases(
             case_access.append(Case.created_by == principal.subject)
         query = query.where(or_(*case_access))
     rows = session.execute(query.order_by(Case.updated_at.desc())).all()
+    latest_decisions: dict[str, UnderwritingDecision] = {}
+    case_ids = [case.id for case, _, _ in rows]
+    if case_ids:
+        for decision in session.scalars(
+            select(UnderwritingDecision)
+            .where(
+                UnderwritingDecision.tenant_id == principal.tenant_id,
+                UnderwritingDecision.case_id.in_(case_ids),
+            )
+            .order_by(UnderwritingDecision.decided_at.desc(), UnderwritingDecision.id.desc())
+        ):
+            latest_decisions.setdefault(decision.case_id, decision)
+    case_summaries: dict[str, CaseSummary] = {}
+    for case, _, _ in rows:
+        summary = CaseSummary.model_validate(case)
+        decision = latest_decisions.get(case.id)
+        if decision is not None:
+            summary = summary.model_copy(
+                update={
+                    "final_decision": decision.decision,
+                    "decision_date": decision.decided_at,
+                    "underwriter_subject": decision.underwriter_subject,
+                    "decision_rationale": decision.decision_rationale,
+                }
+            )
+        case_summaries[case.id] = summary
     return [
         CaseListItem(
-            case=CaseSummary.model_validate(case),
+            case=case_summaries[case.id],
             document_count=document_count,
             last_activity_at=last_document_update or case.updated_at,
         )
@@ -316,6 +349,45 @@ def underwriting_variances(
     principal.require("view")
     case = require_case_access(session, principal=principal, external_case_id=case_id)
     return build_variance_workspace(session, case=case, tenant_id=principal.tenant_id)
+
+
+@router.get(
+    "/cases/{case_id}/underwriting-decisions",
+    response_model=UnderwritingDecisionHistoryOut,
+    tags=["underwriting"],
+)
+def underwriting_decision_history(
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> UnderwritingDecisionHistoryOut:
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    return build_decision_history(session, case=case, principal=principal)
+
+
+@router.post(
+    "/cases/{case_id}/underwriting-decisions",
+    response_model=UnderwritingDecisionHistoryOut,
+    tags=["underwriting"],
+)
+def submit_underwriting_decision(
+    request: Request,
+    case_id: str,
+    payload: UnderwritingDecisionIn,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> UnderwritingDecisionHistoryOut:
+    principal.require("underwriting_decision")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    record_underwriting_decision(
+        session,
+        case=case,
+        principal=principal,
+        payload=payload,
+        correlation_id=request.state.correlation_id,
+    )
+    return build_decision_history(session, case=case, principal=principal)
 
 
 @router.post(
