@@ -27,6 +27,12 @@ _ALLOWED_METADATA_KEYS = {
     "provider_item_rejections",
     "decision_id",
     "workflow_stage",
+    # Identity verification. Only codes, statuses and counts. Never identifiers or names.
+    "subject",
+    "verification_status",
+    "match_status",
+    "mismatch_count",
+    "consent_given",
 }
 
 

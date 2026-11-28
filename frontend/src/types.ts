@@ -125,6 +125,7 @@ export interface ValidationFinding {
   code: string;
   severity: string;
   message?: string | null;
+  rule?: string | null;
 }
 
 export interface ReviewRecord {
@@ -154,7 +155,8 @@ export interface EvidenceField {
     | "contact"
     | "bank_details"
     | "supporting_documents"
-    | "consent";
+    | "consent"
+    | "additional";
   ui_group: string;
   source_literal: string | null;
   candidate_value: unknown;
@@ -389,4 +391,116 @@ export interface ReviewPayload {
   expected_version: number;
   corrected_value?: unknown;
   rationale?: string;
+}
+
+export type IdentitySubject = "aadhaar" | "pan";
+export type MatchStatus =
+  | "match"
+  | "normalized_match"
+  | "review_required"
+  | "mismatch"
+  | "not_available"
+  | "not_applicable";
+export type VerificationStatus =
+  | "not_verified"
+  | "not_configured"
+  | "verified"
+  | "failed"
+  | "consent_missing"
+  | "provider_error";
+
+export interface IdentityDocument {
+  subject: IdentitySubject;
+  state: "not_uploaded" | "processing" | "failed" | "extracted";
+  document_id: string | null;
+  filename: string | null;
+  document_status: string | null;
+  failure_code: string | null;
+  action_required: string | null;
+  extraction_confidence: number | null;
+  fields: EvidenceField[];
+}
+
+export interface IdentityFinding {
+  subject: IdentitySubject;
+  field_path: string;
+  status: "passed" | "warning" | "failed";
+  rule: string;
+  reason: string;
+  citation: Record<string, unknown> | null;
+}
+
+export interface IdentityMatch {
+  field: string;
+  label: string;
+  kyc_value: string | null;
+  aadhaar_value: string | null;
+  pan_value: string | null;
+  match_status: MatchStatus;
+  confidence: number;
+  explanation: string;
+  pairs: Array<{ left: string; right: string; status: MatchStatus; reason: string }>;
+  not_applicable_sources: string[];
+  missing_sources: string[];
+}
+
+export interface IdentityVerification {
+  subject: IdentitySubject;
+  status: VerificationStatus;
+  configured: boolean;
+  provider: string | null;
+  reason_code: string | null;
+  verified_at: string | null;
+  consent_given: boolean | null;
+}
+
+export interface IdentityIssue {
+  code: string;
+  category: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  subject: IdentitySubject | null;
+  field: string | null;
+}
+
+export interface IdentityReview {
+  status: "not_started" | "completed" | "stale";
+  decision: string | null;
+  rationale: string | null;
+  reviewer_subject: string | null;
+  reviewed_at: string | null;
+  resolved_fields: string[];
+}
+
+export interface IdentitySummary {
+  case_id: string;
+  fingerprint: string;
+  kyc_present: boolean;
+  documents: IdentityDocument[];
+  stages: {
+    document_uploaded: Record<string, string>;
+    information_extracted: Record<string, string>;
+    format_validated: Record<string, string>;
+    kyc_matched: string;
+    authenticity_verified: Record<string, string>;
+    human_review_completed: string;
+  };
+  match_status: MatchStatus;
+  matches: IdentityMatch[];
+  findings: IdentityFinding[];
+  verification: IdentityVerification[];
+  review: IdentityReview;
+  issues: IdentityIssue[];
+}
+
+export interface IdentityVerifyInput {
+  subjects: IdentitySubject[];
+  consent: { given: boolean; purpose: string };
+  pan_number?: string;
+}
+
+export interface IdentityReviewInput {
+  decision: "confirmed" | "rejected" | "follow_up_required";
+  rationale?: string;
+  resolved_fields: string[];
 }

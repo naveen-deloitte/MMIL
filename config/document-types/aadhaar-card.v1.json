@@ -1,0 +1,148 @@
+{
+  "document_type": "aadhaar_card",
+  "schema_version": "1.0.0",
+  "display_name": "Aadhaar card",
+  "classification": {
+    "hints": ["aadhaar", "unique identification authority of india", "government of india"],
+    "minimum_confidence": 0.8,
+    "separation_margin": 0.1,
+    "on_uncertain": "require_type_selection"
+  },
+  "constraints": {
+    "media_types": ["application/pdf", "image/jpeg", "image/png", "image/tiff"],
+    "max_pages": 5
+  },
+  "extraction": {
+    "strategy": "deterministic_only",
+    "prompt_version": "aadhaar-card-local-1.0.0",
+    "capture_additional_facts": false
+  },
+  "additional_facts": {
+    "enabled": false,
+    "allowed_categories": [],
+    "citations_required": true,
+    "max_items": 0
+  },
+  "fields": [
+    {
+      "path": "identity.full_name",
+      "label": "Full name",
+      "description": "Name exactly as printed on the Aadhaar card. Never inferred.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Aadhaar details",
+      "required": true,
+      "normalizers": ["trim", "collapse_whitespace"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?im)^[ \\t]*Name[ \\t]*[:\\-][ \\t]*(?P<value>[A-Za-z][A-Za-z .'-]{1,80}?)[ \\t]*$"},
+        {"regex": "(?im)^[ \\t]*(?P<value>[A-Za-z][A-Za-z.'-]*(?:[ \\t]+[A-Za-z][A-Za-z.'-]*){0,5})[ \\t]*\\r?\\n[^\\r\\n]{0,40}?(?:DOB|D\\.O\\.B\\.?|Date of Birth|Year of Birth|Birth Year|YoB)\\b"},
+        {"regex": "(?im)^[ \\t]*(?P<value>[A-Za-z][A-Za-z.'-]*(?:[ \\t]+[A-Za-z][A-Za-z.'-]*){0,5})[ \\t]*\\r?\\n[ \\t]*(?:S|D|W|C)/O\\b"}
+      ]
+    },
+    {
+      "path": "identity.date_of_birth",
+      "label": "Date of birth",
+      "description": "Full date of birth as printed on the Aadhaar card, if present.",
+      "data_type": "date",
+      "ui_section": "identity",
+      "ui_group": "Aadhaar details",
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?:\\bDOB|\\bD\\.O\\.B\\.?|Date\\s+of\\s+Birth)[ \\t]*[:\\-]?[ \\t]*\\r?\\n?[ \\t]*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{4})\\b"}
+      ]
+    },
+    {
+      "path": "identity.year_of_birth",
+      "label": "Year of birth",
+      "description": "Year of birth where the card prints a year instead of a full date.",
+      "data_type": "integer",
+      "ui_section": "identity",
+      "ui_group": "Aadhaar details",
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?:Year\\s+of\\s+Birth|Birth\\s+Year|\\bYoB)[ \\t]*[:\\-]?[ \\t]*(?P<value>(?:19|20)\\d{2})\\b"}
+      ]
+    },
+    {
+      "path": "identity.gender",
+      "label": "Gender",
+      "description": "Gender exactly as printed on the Aadhaar card.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Aadhaar details",
+      "normalizers": ["trim", "title"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?<![A-Za-z])(?P<value>Female|Male|Transgender)(?![A-Za-z])"}
+      ]
+    },
+    {
+      "path": "identity.address",
+      "label": "Address",
+      "description": "Address block as printed, ending at the six digit PIN code.",
+      "data_type": "text",
+      "ui_section": "contact",
+      "ui_group": "Aadhaar details",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)\\bAddress[ \\t]*[:\\-][ \\t]*(?P<value>(?:[^\\r\\n]+\\r?\\n){0,5}?[^\\r\\n]*?\\b\\d{6}\\b)"},
+        {"regex": "(?im)^[ \\t]*(?:S|D|W|C)/O\\b[^\\r\\n]*\\r?\\n(?P<value>(?:[^\\r\\n]+\\r?\\n){0,4}?[^\\r\\n]*?\\b\\d{6}\\b)"}
+      ]
+    },
+    {
+      "path": "identity.aadhaar_number",
+      "label": "Aadhaar number",
+      "description": "Aadhaar number. Held in memory for checksum validation only and stored masked. A masked number printed on the card is valid and not an error.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "Aadhaar identification",
+      "required": true,
+      "normalizers": ["trim", "strip_spaces", "upper"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?<![A-Za-z0-9])(?<!\\d )(?P<value>(?:\\d{4}|[Xx*]{4})[ \\t]?(?:\\d{4}|[Xx*]{4})[ \\t]?\\d{4})(?![ \\t]?\\d)(?![A-Za-z])"},
+        {"regex": "(?<![A-Za-z0-9])(?<!\\d )(?<!VID )(?<!VID: )(?<!VID : )(?P<value>\\d{4}[ \\t]\\d{4}[ \\t]\\d{4}[ \\t]\\d{4})(?![ \\t]?\\d)(?![A-Za-z])"}
+      ]
+    },
+    {
+      "path": "document.document_type",
+      "label": "Document variant",
+      "description": "Aadhaar document variant (card, e-Aadhaar or masked Aadhaar) determined from printed text.",
+      "data_type": "text",
+      "ui_section": "additional",
+      "ui_group": "Document information",
+      "normalizers": ["trim", "lower"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?<![A-Za-z])(?P<value>Aadhaar)(?![A-Za-z])"}
+      ]
+    },
+    {
+      "path": "document.issue_context",
+      "label": "Issue context",
+      "description": "Issue or generation date only where the document states it explicitly.",
+      "data_type": "date",
+      "ui_section": "additional",
+      "ui_group": "Document information",
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?:Aadhaar\\s+no\\.?\\s+issued|Issue\\s+Date|Generated\\s+on|Download\\s+Date)[ \\t]*[:\\-]?[ \\t]*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{4})\\b"}
+      ]
+    },
+    {
+      "path": "document.qr_present",
+      "label": "QR code mentioned",
+      "description": "True only when the document text mentions a QR code. The QR code is not decoded or signature verified here.",
+      "data_type": "boolean",
+      "ui_section": "additional",
+      "ui_group": "Document information",
+      "normalizers": ["presence"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?<![A-Za-z])(?P<value>QR(?:[ \\t-]*code)?)(?![A-Za-z])"}
+      ]
+    }
+  ]
+}

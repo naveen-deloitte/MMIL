@@ -7,6 +7,9 @@ import type {
   DocumentDeletion,
   DocumentSummary,
   ExtractionHistory,
+  IdentityReviewInput,
+  IdentitySummary,
+  IdentityVerifyInput,
   ReviewPayload,
   UnderwritingVarianceDecisionInput,
   UnderwritingVarianceWorkspace,
@@ -119,7 +122,11 @@ export function createCase(payload: CaseCreateInput): Promise<CaseSummary> {
 export async function uploadDocument(
   caseId: string,
   file: File,
-  documentType: "medical_report" | "kyc_individual" = "medical_report",
+  documentType:
+    | "medical_report"
+    | "kyc_individual"
+    | "aadhaar_card"
+    | "pan_card" = "medical_report",
 ): Promise<DocumentSummary> {
   const form = new FormData();
   form.append("file", file);
@@ -176,4 +183,30 @@ export function loadAudit(caseId: string): Promise<AuditPage> {
 export function documentContentUrl(documentId: string, page: number): string {
   const base = `/api/v1/documents/${encodeURIComponent(documentId)}/content`;
   return `${base}#page=${Math.max(1, Math.trunc(page))}`;
+}
+
+export function loadIdentitySummary(caseId: string): Promise<IdentitySummary> {
+  return request<IdentitySummary>(`/api/v1/cases/${encodeURIComponent(caseId)}/identity/summary`);
+}
+
+export function verifyIdentity(
+  caseId: string,
+  payload: IdentityVerifyInput,
+): Promise<{ reused_existing: string[]; summary: IdentitySummary }> {
+  return request(`/api/v1/cases/${encodeURIComponent(caseId)}/identity/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function submitIdentityReview(
+  caseId: string,
+  payload: IdentityReviewInput,
+): Promise<IdentitySummary> {
+  return request<IdentitySummary>(`/api/v1/cases/${encodeURIComponent(caseId)}/identity/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }

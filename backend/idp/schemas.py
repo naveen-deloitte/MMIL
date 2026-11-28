@@ -4,7 +4,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 class ApiModel(BaseModel):
@@ -311,6 +318,15 @@ class ValidationOut(ApiModel):
     code: str
     severity: str
     message: str | None = None
+    rule: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_rule(self, handler: Any) -> dict[str, Any]:
+        # ``rule`` is only present on identity findings. Existing validations keep their shape.
+        data = handler(self)
+        if data.get("rule") is None:
+            data.pop("rule", None)
+        return data
 
 
 class ReviewOut(ApiModel):

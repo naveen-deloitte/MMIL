@@ -129,7 +129,7 @@ class SchemaExtractor:
                 for match in compiled.finditer(page.text):
                     literal = match.group(pattern.value_group).strip()
                     try:
-                        normalized = normalize_value(definition.data_type, literal)
+                        normalized = normalize_field_value(definition, literal)
                     except ValueError:
                         invalid_literals.append(literal)
                         continue
@@ -321,6 +321,35 @@ def extract_additional_facts(
         facts.append(fact)
     validate_grounding(facts, pages, document_id, document_version)
     return facts
+
+
+_TEXT_NORMALIZERS = {
+    "trim": lambda value: value.strip(),
+    "collapse_whitespace": lambda value: " ".join(value.split()),
+    "strip_spaces": lambda value: "".join(value.split()),
+    "upper": lambda value: value.upper(),
+    "lower": lambda value: value.lower(),
+    "title": lambda value: value.title(),
+}
+
+
+def normalize_field_value(definition: FieldDefinition, literal: str) -> Any:
+    """Normalize a source literal using the field's data type and optional text normalizers.
+
+    The ``presence`` normalizer turns the mere appearance of a label into ``True`` (used for
+    "is a signature label printed on the document"). Other normalizers apply to text fields only.
+    Fields that use only the default ``trim`` normalizer behave exactly as before.
+    """
+    if "presence" in definition.normalizers:
+        if not literal.strip():
+            raise ValueError("empty presence marker")
+        return True
+    if definition.data_type == "text" and definition.normalizers:
+        value = literal
+        for name in definition.normalizers:
+            value = _TEXT_NORMALIZERS.get(name, lambda item: item)(value)
+        return normalize_value("text", value)
+    return normalize_value(definition.data_type, literal)
 
 
 def normalize_value(data_type: str, literal: str) -> Any:

@@ -21,11 +21,13 @@ import {
 import { DrawerShell } from "./components/Drawers";
 import {
   AdditionalFactsView,
+  EvidenceRow,
   KnockoutChecksView,
   LabReportsView,
   SummaryView,
   VitalsView,
 } from "./components/EvidenceViews";
+import { IdentityVerificationView } from "./components/IdentityViews";
 import { KycViews, kycViews } from "./components/KycViews";
 import { SourceViewer } from "./components/SourceViewer";
 import { ReviewDialog } from "./components/ReviewDialog";
@@ -54,15 +56,18 @@ type CaseSection =
   | "Document Review"
   | "HITL Review"
   | "Case Evidence"
+  | "Identity Verification"
   | "Underwriting Assessment"
   | "Underwriting Variance Review";
 type AssessmentView = "Overview" | "Underwriting" | "Decision" | "Simulator" | "Ask AI" | "Audit";
-type UploadDocumentType = "medical_report" | "kyc_individual";
+type UploadDocumentType = "medical_report" | "kyc_individual" | "aadhaar_card" | "pan_card";
+const identityDocumentTypes = new Set(["aadhaar_card", "pan_card"]);
 
 const caseSections: CaseSection[] = [
   "Document Review",
   "HITL Review",
   "Case Evidence",
+  "Identity Verification",
   "Underwriting Assessment",
   "Underwriting Variance Review",
 ];
@@ -249,6 +254,7 @@ export default function App() {
     (field) => field.document_id === selectedDocument?.id,
   ) ?? [];
   const isKycDocument = selectedDocument?.document_type === "kyc_individual";
+  const isIdentityDocument = identityDocumentTypes.has(selectedDocument?.document_type ?? "");
   const visibleViews = isKycDocument ? kycViews : medicalViews;
   const activeKycView = kycViews.find((view) => view.id === activeView)?.id ?? "overview";
   const selectedView = isKycDocument ? activeKycView : activeView;
@@ -316,7 +322,9 @@ export default function App() {
       const caseId = workspace?.case.external_case_id;
       if (!caseId) throw new Error("Open a case before uploading a document.");
       const document = await uploadDocument(caseId, file, uploadDocumentType);
-      setActiveSection("Document Review");
+      setActiveSection(
+        identityDocumentTypes.has(document.document_type) ? "Identity Verification" : "Document Review",
+      );
       setActiveDocumentId(document.id);
       setActiveView(document.document_type === "kyc_individual" ? "overview" : "summary");
       setNotice(`${document.filename} uploaded. Processing is queued.`);
@@ -508,13 +516,20 @@ export default function App() {
               value={uploadDocumentType}
               onChange={(event) => {
                 const value = event.target.value;
-                if (value === "medical_report" || value === "kyc_individual") {
+                if (
+                  value === "medical_report"
+                  || value === "kyc_individual"
+                  || value === "aadhaar_card"
+                  || value === "pan_card"
+                ) {
                   setUploadDocumentType(value);
                 }
               }}
             >
               <option value="medical_report">Medical report</option>
               <option value="kyc_individual">Individual KYC</option>
+              <option value="aadhaar_card">Aadhaar Card</option>
+              <option value="pan_card">PAN Card</option>
             </select>
           </label>
           <button type="button" className="primary-button" onClick={() => fileInput.current?.click()}>Add document</button>
@@ -578,6 +593,7 @@ export default function App() {
                     setRemovalDocument(document);
                   }}
                 />
+                {!isIdentityDocument ? (
                 <nav className="medical-tabs" aria-label={isKycDocument ? "KYC assessment views" : "Medical assessment views"}>
                   {visibleViews.map((view) => (
                     <button
@@ -595,10 +611,30 @@ export default function App() {
                     </button>
                   ))}
                 </nav>
+                ) : null}
                 {!selectedDocument ? (
                   <div className="section-empty-state">
                     <strong>No documents uploaded</strong>
                     <p>Add a document to review extracted fields and source citations.</p>
+                  </div>
+                ) : isIdentityDocument ? (
+                  <div className="identity-document-fields">
+                    {latestDocumentFields.length === 0 ? (
+                      <p className="data-note">
+                        {selectedDocument.status === "failed"
+                          ? "Processing failed. Open Identity Verification for the action required."
+                          : "No extracted fields yet."}
+                      </p>
+                    ) : null}
+                    {latestDocumentFields.map((field) => (
+                      <EvidenceRow
+                        key={field.id}
+                        field={field}
+                        onCitation={openCitation}
+                        onReview={(item) => { setReviewError(null); setReviewField(item); }}
+                      />
+                    ))}
+                    <p className="data-note">Open Identity Verification for matching and verification status.</p>
                   </div>
                 ) : isKycDocument ? (
                   <KycViews
@@ -639,6 +675,22 @@ export default function App() {
                   </>
                 )}
               </>
+            ) : null}
+            {activeSection === "Identity Verification" ? (
+              <IdentityVerificationView
+                caseId={workspace.case.external_case_id}
+                refreshKey={`${workspace.counts.pending}-${workspace.counts.accepted}-${workspace.counts.corrected}-${workspace.counts.rejected}-${workspace.documents.map((item) => `${item.id}:${item.status}`).join(",")}`}
+                onCitation={openCitation}
+                onReview={(field) => { setReviewError(null); setReviewField(field); }}
+                onOpenDocument={(documentId) => {
+                  const target = workspace.documents.find((item) => item.id === documentId);
+                  if (target) {
+                    setActiveDocumentId(documentId);
+                    openSource(target);
+                  }
+                }}
+                onChanged={() => void refresh(true)}
+              />
             ) : null}
             {activeSection === "Underwriting Variance Review" ? (
               <UnderwritingVarianceReview caseId={workspace.case.external_case_id} />

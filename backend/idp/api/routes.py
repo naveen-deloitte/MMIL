@@ -38,6 +38,18 @@ from idp.schemas import (
     UploadOut,
     WorkspaceOut,
 )
+from idp.identity.schemas import (
+    IdentityMatchesOut,
+    IdentityReviewIn,
+    IdentitySummaryOut,
+    IdentityVerifyIn,
+    IdentityVerifyOut,
+)
+from idp.identity.service import (
+    build_identity_summary,
+    record_identity_review,
+    verify_identity,
+)
 from idp.services.ingestion import find_case, ingest_document
 from idp.services.processing import retry_document
 from idp.services.reviews import ReviewInput, review_fields
@@ -814,3 +826,94 @@ def audit(
         metadata={"result_count": len(result.items)},
     )
     return result
+
+
+@router.get(
+    "/cases/{case_id}/identity/summary", response_model=IdentitySummaryOut, tags=["identity"]
+)
+def identity_summary(
+    request: Request,
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> IdentitySummaryOut:
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    return build_identity_summary(
+        session,
+        case=case,
+        tenant_id=principal.tenant_id,
+        settings=request.app.state.settings,
+    )
+
+
+@router.get(
+    "/cases/{case_id}/identity/matches", response_model=IdentityMatchesOut, tags=["identity"]
+)
+def identity_matches(
+    request: Request,
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> IdentityMatchesOut:
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    summary = build_identity_summary(
+        session,
+        case=case,
+        tenant_id=principal.tenant_id,
+        settings=request.app.state.settings,
+    )
+    return IdentityMatchesOut(
+        case_id=summary.case_id,
+        fingerprint=summary.fingerprint,
+        match_status=summary.match_status,
+        matches=summary.matches,
+    )
+
+
+@router.post(
+    "/cases/{case_id}/identity/verify", response_model=IdentityVerifyOut, tags=["identity"]
+)
+def identity_verify(
+    request: Request,
+    case_id: str,
+    payload: IdentityVerifyIn,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> IdentityVerifyOut:
+    principal.require("review")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    summary, reused = verify_identity(
+        session,
+        case=case,
+        principal=principal,
+        settings=request.app.state.settings,
+        payload=payload,
+        correlation_id=request.state.correlation_id,
+        aadhaar_verifier=getattr(request.app.state, "aadhaar_verifier", None),
+        pan_verifier=getattr(request.app.state, "pan_verifier", None),
+    )
+    return IdentityVerifyOut(reused_existing=reused, summary=summary)
+
+
+@router.post(
+    "/cases/{case_id}/identity/review", response_model=IdentitySummaryOut, tags=["identity"]
+)
+def identity_review(
+    request: Request,
+    case_id: str,
+    payload: IdentityReviewIn,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> IdentitySummaryOut:
+    principal.require("review")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    return record_identity_review(
+        session,
+        case=case,
+        principal=principal,
+        settings=request.app.state.settings,
+        payload=payload,
+        correlation_id=request.state.correlation_id,
+    )

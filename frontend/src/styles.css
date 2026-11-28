@@ -1179,3 +1179,25 @@ select:not([multiple]):not([size]):disabled { cursor: not-allowed; opacity: 0.6;
 .advisory-actions { margin-top: 4px; display: flex; align-items: center; gap: 6px; }
 .advisory-actions small { min-width: 0; flex: 1; overflow: hidden; color: var(--gray-6); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .advisory-actions .text-button { font-size: 10px; }
+
+/* Identity verification. Verified green is reserved for official verification only. */
+.identity-view { display: grid; gap: 16px; }
+.identity-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.identity-table th, .identity-table td { text-align: left; padding: 8px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+.identity-table tr.mismatch-row { background: #fdecea; }
+.identity-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #eef0f3; color: #3b4048; }
+.identity-badge.match-match, .identity-badge.match-normalized_match { background: #e6f0fb; color: #1d4f91; }
+.identity-badge.match-review_required { background: #fff4d6; color: #7a5400; }
+.identity-badge.match-mismatch, .identity-badge.verification-failed { background: #fdecea; color: #a1261b; }
+.identity-badge.verification-verified { background: #e3f4e8; color: #1e6b37; }
+.identity-badge.state-validation_failed { background: #fdecea; color: #a1261b; }
+.identity-badge.state-failed { background: #fdecea; color: #a1261b; }
+.identity-card-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.match-explanation { font-size: 12px; color: #5c636e; margin-top: 4px; }
+.identity-issues { margin: 0; padding-left: 18px; font-size: 13px; }
+.identity-issues .issue-error { color: #a1261b; }
+.identity-issues .issue-warning { color: #7a5400; }
+.identity-error { color: #a1261b; background: #fdecea; padding: 8px 12px; border-radius: 6px; }
+.identity-consent, .identity-pan-input { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; }
+.verification-list { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 6px; }
+.muted { color: #7a808a; }

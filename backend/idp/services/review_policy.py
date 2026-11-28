@@ -53,6 +53,8 @@ RECOMMENDED_FIELDS: dict[str, tuple[str, ...]] = {
         "consent.declaration_name",
         "contact.next_of_kin_1_name",
     ),
+    "aadhaar_card": ("identity.date_of_birth", "identity.gender", "identity.address"),
+    "pan_card": ("identity.date_of_birth", "identity.father_name"),
     MEDICAL_DOCUMENT_TYPE: (
         "report.observed_date",
         "observations.blood_pressure",
@@ -136,6 +138,25 @@ def _kyc_name_checks(
     return critical, advisory
 
 
+IDENTITY_DOCUMENT_TYPES = frozenset({"aadhaar_card", "pan_card"})
+
+
+def _identity_name_checks(
+    values: dict[str, Any], case_applicant_name: str | None
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Compare an Aadhaar or PAN name with the case's life assured name."""
+    path = "identity.full_name"
+    document_tokens = set(_name_tokens(values.get(path)))
+    case_tokens = set(_name_tokens(case_applicant_name))
+    if not document_tokens or not case_tokens:
+        return {}, {}
+    if not document_tokens & case_tokens:
+        return {path: "Name on the identity document does not match the case's life assured."}, {}
+    if not (case_tokens <= document_tokens or document_tokens <= case_tokens):
+        return {}, {path: "Name on the identity document only partly matches the case."}
+    return {}, {}
+
+
 def _parse_date(value: Any) -> date | None:
     try:
         return date.fromisoformat(str(value)[:10])
@@ -181,6 +202,8 @@ def decide_review_states(
     values = {item.field_path: item.value for item in items if item.value not in (None, "")}
     if document_type == KYC_DOCUMENT_TYPE:
         name_critical, name_advisory = _kyc_name_checks(values, case_applicant_name)
+    elif document_type in IDENTITY_DOCUMENT_TYPES:
+        name_critical, name_advisory = _identity_name_checks(values, case_applicant_name)
     else:
         name_critical, name_advisory = {}, {}
     date_notes = _date_advisories(values, document_type, today or date.today())

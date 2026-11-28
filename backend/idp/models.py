@@ -402,3 +402,72 @@ class AuditEvent(Base):
     correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+
+
+class IdentityVerification(Base):
+    """One official verification attempt for an Aadhaar or PAN. Holds no raw identity data."""
+
+    __tablename__ = "identity_verifications"
+    __table_args__ = (
+        Index("ix_identity_verification_case", "tenant_id", "case_id", "subject", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    document_id: Mapped[str | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL")
+    )
+    subject: Mapped[str] = mapped_column(String(20), nullable=False)  # aadhaar | pan
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    provider: Mapped[str] = mapped_column(String(60), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(100))
+    masked_identifier: Mapped[str | None] = mapped_column(String(40))
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    consent_given: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    consent_purpose: Mapped[str | None] = mapped_column(String(200))
+    consent_recorded_by: Mapped[str | None] = mapped_column(String(200))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    result_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    verified_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+
+
+class IdentityMatchSnapshot(Base):
+    """Persisted cross-document comparison. Values are masked; unique per input fingerprint."""
+
+    __tablename__ = "identity_match_snapshots"
+    __table_args__ = (
+        UniqueConstraint("case_id", "fingerprint", name="uq_identity_snapshot_fingerprint"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    overall_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    matches_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    findings_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+
+
+class IdentityReview(Base):
+    """Underwriter decision on the identity comparison. Append-only history."""
+
+    __tablename__ = "identity_reviews"
+    __table_args__ = (Index("ix_identity_review_case", "tenant_id", "case_id", "reviewed_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision: Mapped[str] = mapped_column(String(30), nullable=False)
+    rationale: Mapped[str | None] = mapped_column(Text)
+    resolved_fields_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    mismatches_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    reviewer_subject: Mapped[str] = mapped_column(String(200), nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)

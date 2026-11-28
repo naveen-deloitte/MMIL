@@ -38,6 +38,9 @@ from idp.extraction.providers import (
 )
 from idp.extraction.scanner import DevelopmentBasicScanner, Scanner
 from idp.extraction.text import PageText, PageTextService
+from idp.identity.identity_validator import IDENTITY_DOCUMENT_TYPES
+from idp.identity.layout import reorder_card_columns
+from idp.identity.postprocess import finalize_identity_extraction
 from idp.models import (
     AdditionalFact,
     Case,
@@ -144,7 +147,8 @@ class ProcessingService:
         self.worker_id = worker_id or f"{socket.gethostname()}-{id(self)}"
 
     def _provider_for(self, document_type: str) -> ExtractionProvider:
-        if document_type == "kyc_individual":
+        if document_type in {"kyc_individual", *IDENTITY_DOCUMENT_TYPES}:
+            # Identity documents are never sent to an external provider.
             return DeterministicLocalProvider()
         if self.provider is None:
             self.provider = build_provider(self.settings)
@@ -247,6 +251,9 @@ class ProcessingService:
                 job, document = self._load_job_document(session, job_id)
                 transition(job, document, "extracting")
 
+            if document.document_type in IDENTITY_DOCUMENT_TYPES:
+                # Side-by-side card images: read each side top to bottom before matching.
+                pages = reorder_card_columns(pages)
             extractor = SchemaExtractor(registry.definition)
             if provider.name == "deterministic-local":
                 candidates = extractor.extract(
@@ -256,6 +263,11 @@ class ProcessingService:
                 )
             else:
                 candidates = extractor.empty_candidates()
+            if document.document_type in IDENTITY_DOCUMENT_TYPES:
+                # Validate full identifiers in memory, then persist only masked values and text.
+                candidates, pages = finalize_identity_extraction(
+                    document.document_type, candidates, pages
+                )
             provider_pages = pages
             if provider.name != "deterministic-local":
                 provider_pages = redact_pages(pages)

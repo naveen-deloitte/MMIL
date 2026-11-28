@@ -1,0 +1,134 @@
+{
+  "document_type": "pan_card",
+  "schema_version": "1.0.0",
+  "display_name": "PAN card",
+  "classification": {
+    "hints": ["permanent account number", "income tax department", "govt. of india"],
+    "minimum_confidence": 0.8,
+    "separation_margin": 0.1,
+    "on_uncertain": "require_type_selection"
+  },
+  "constraints": {
+    "media_types": ["application/pdf", "image/jpeg", "image/png", "image/tiff"],
+    "max_pages": 5
+  },
+  "extraction": {
+    "strategy": "deterministic_only",
+    "prompt_version": "pan-card-local-1.0.0",
+    "capture_additional_facts": false
+  },
+  "additional_facts": {
+    "enabled": false,
+    "allowed_categories": [],
+    "citations_required": true,
+    "max_items": 0
+  },
+  "fields": [
+    {
+      "path": "identity.full_name",
+      "label": "Full name",
+      "description": "Name exactly as printed on the PAN card. Never inferred.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "PAN details",
+      "required": true,
+      "normalizers": ["trim", "collapse_whitespace"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?im)^[ \\t]*(?:[^\\r\\n]*/[ \\t]*)?Name[ \\t]*[:\\-]?[ \\t]*(?:\\r?\\n[ \\t]*|[ \\t]+)(?!Father|Date|Signature|Permanent|Account)(?P<value>[A-Za-z][A-Za-z .'-]{1,80}?)[ \\t]*$"}
+      ]
+    },
+    {
+      "path": "identity.father_name",
+      "label": "Father's name",
+      "description": "Father's name exactly as printed on the PAN card, if present.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "PAN details",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?im)^[ \\t]*(?:[^\\r\\n]*/[ \\t]*)?Father['\u2019]?s?[ \\t]+Name[ \\t]*[:\\-]?[ \\t]*(?:\\r?\\n[ \\t]*|[ \\t]+)(?!Date|Signature|Permanent|Account)(?P<value>[A-Za-z][A-Za-z .'-]{1,80}?)[ \\t]*$"}
+      ]
+    },
+    {
+      "path": "identity.date_of_birth",
+      "label": "Date of birth",
+      "description": "Date of birth as printed on the PAN card.",
+      "data_type": "date",
+      "ui_section": "identity",
+      "ui_group": "PAN details",
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?:Date\\s+of\\s+Birth|\\bDOB)[ \\t]*[:\\-]?[ \\t]*\\r?\\n?[ \\t]*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{4})\\b"}
+      ]
+    },
+    {
+      "path": "identity.pan_number",
+      "label": "PAN",
+      "description": "Permanent Account Number. Held in memory for format validation only and stored masked. A syntactically valid PAN is not an officially verified PAN.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "PAN identification",
+      "required": true,
+      "normalizers": ["trim", "strip_spaces", "upper"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?<![A-Za-z0-9])(?P<value>[A-Z]{5}[0-9]{4}[A-Z])(?![A-Za-z0-9])"},
+        {"regex": "(?i)Permanent\\s+Account\\s+Number(?:[ \\t]+Card)?[ \\t]*[:\\-]?[ \\t]*\\r?\\n?[ \\t]*(?P<value>(?=[A-Za-z0-9]*\\d)[A-Za-z0-9]{8,12})(?![A-Za-z0-9])"}
+      ]
+    },
+    {
+      "path": "identity.pan_holder_category",
+      "label": "PAN holder category",
+      "description": "Holder category from the fourth character of a PAN. Reported only when that character is a recognised category code.",
+      "data_type": "text",
+      "ui_section": "identity",
+      "ui_group": "PAN identification",
+      "normalizers": ["trim", "upper"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?<![A-Za-z0-9])[A-Z]{3}(?P<value>[PCHFATBLJG])[A-Z][0-9]{4}[A-Z](?![A-Za-z0-9])"}
+      ]
+    },
+    {
+      "path": "document.document_type",
+      "label": "Document variant",
+      "description": "Document type indicated by the printed heading.",
+      "data_type": "text",
+      "ui_section": "additional",
+      "ui_group": "Document information",
+      "normalizers": ["trim", "collapse_whitespace", "lower"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?P<value>Permanent\\s+Account\\s+Number)"}
+      ]
+    },
+    {
+      "path": "document.photograph_present",
+      "label": "Photograph label present",
+      "description": "True only when a photograph label is printed in the text. The image itself is not inspected.",
+      "data_type": "boolean",
+      "ui_section": "additional",
+      "ui_group": "Document information",
+      "normalizers": ["presence"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?<![A-Za-z])(?P<value>Photo(?:graph)?)(?![A-Za-z])"}
+      ]
+    },
+    {
+      "path": "document.signature_present",
+      "label": "Signature label present",
+      "description": "True only when a signature label is printed in the text. The image itself is not inspected.",
+      "data_type": "boolean",
+      "ui_section": "additional",
+      "ui_group": "Document information",
+      "normalizers": ["presence"],
+      "validators": ["type"],
+      "patterns": [
+        {"regex": "(?i)(?<![A-Za-z])(?P<value>Signature)(?![A-Za-z])"}
+      ]
+    }
+  ]
+}

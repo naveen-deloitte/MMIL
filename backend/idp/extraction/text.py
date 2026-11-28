@@ -73,13 +73,22 @@ class RapidOcrAdapter:
     version = "unknown"
 
     def __init__(self) -> None:
-        try:
-            from importlib.metadata import version
+        from importlib.metadata import version
 
+        # ``rapidocr-onnxruntime`` (1.x) has no builds for newer Python versions. Its maintained
+        # successor ``rapidocr`` (3.x) is used there. Both run locally; no data leaves the host.
+        try:
             from rapidocr_onnxruntime import RapidOCR
-        except ImportError as exc:
-            raise ProcessingError("ocr_adapter_not_installed", retryable=False) from exc
-        self.version = version("rapidocr-onnxruntime")
+
+            self._legacy = True
+            self.version = f"rapidocr-onnxruntime-{version('rapidocr-onnxruntime')}"
+        except ImportError:
+            try:
+                from rapidocr import RapidOCR
+            except ImportError as exc:
+                raise ProcessingError("ocr_adapter_not_installed", retryable=False) from exc
+            self._legacy = False
+            self.version = f"rapidocr-{version('rapidocr')}"
         self._engine = RapidOCR()
 
     def extract(self, image: RasterImage) -> tuple[str, list[TextBlock], float | None]:
@@ -93,7 +102,16 @@ class RapidOcrAdapter:
                 array = np.repeat(array, 3, axis=2)
             elif image.channels > 3:
                 array = array[:, :, :3]
-            result, _timing = self._engine(array)
+            if self._legacy:
+                result, _timing = self._engine(array)
+            else:
+                output = self._engine(array)
+                boxes = getattr(output, "boxes", None)
+                result = (
+                    list(zip(boxes, output.txts or (), output.scores or (), strict=False))
+                    if boxes is not None
+                    else []
+                )
         except Exception as exc:
             raise ProcessingError("ocr_failed", retryable=True) from exc
         if not result:

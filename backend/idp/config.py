@@ -72,6 +72,16 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("IDP_MODEL_API_KEY", "OPENAI_API_KEY", "model_api_key"),
     )
 
+    # Official identity verification. Both default to "not_configured": no verification is
+    # attempted and nothing is ever reported as verified without an authorized provider.
+    identity_aadhaar_provider: Literal["not_configured", "uidai-offline-qr"] = "not_configured"
+    identity_aadhaar_trust_cert_path: Path | None = None
+    identity_pan_provider: Literal["not_configured", "http"] = "not_configured"
+    identity_pan_endpoint: str | None = None
+    identity_pan_api_key: SecretStr | None = Field(default=None, repr=False)
+    identity_pan_timeout_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
+    identity_pan_max_retries: int = Field(default=2, ge=0, le=5)
+
     oidc_issuer: str | None = None
     oidc_audience: str | None = None
     oidc_jwks_url: str | None = None
@@ -149,6 +159,11 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "only Azure OpenAI is permitted by the Launchpad dev provider policy"
                 )
+        if self.identity_pan_provider == "http":
+            if not self.identity_pan_endpoint or not self.identity_pan_api_key:
+                raise ValueError("PAN verification requires an endpoint and API key")
+            if not self.identity_pan_endpoint.startswith("https://"):
+                raise ValueError("PAN verification endpoint must use https")
         if self.ocr_provider == "textract":
             if not self.ocr_region:
                 raise ValueError("textract OCR requires an ocr_region")

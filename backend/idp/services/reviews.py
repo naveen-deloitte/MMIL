@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from idp.audit import append_audit
 from idp.errors import AppError, StaleReviewError
 from idp.extraction.engine import normalize_value
+from idp.identity.identity_validator import IDENTITY_DOCUMENT_TYPES
+from idp.identity.masking import IDENTIFIER_FIELD_PATHS, mask_identifier_correction, mask_text
 from idp.models import Document, EvidenceReview, ExtractedField, ProcessingJob
 from idp.services.processing import transition
 
@@ -73,6 +75,8 @@ def review_fields(
             )
 
         rationale = (item.rationale or "").strip()
+        if document.document_type in IDENTITY_DOCUMENT_TYPES:
+            rationale = mask_text(rationale)
         if len(rationale) > 2000:
             raise AppError(
                 422,
@@ -105,6 +109,12 @@ def review_fields(
                 )
             try:
                 after_value = _normalize_correction(field.data_type, item.corrected_value)
+                if (
+                    document.document_type in IDENTITY_DOCUMENT_TYPES
+                    and field.field_path in IDENTIFIER_FIELD_PATHS
+                ):
+                    # Identifiers are stored masked only, even when a reviewer types the full one.
+                    after_value = mask_identifier_correction(field.field_path, str(after_value))
             except (TypeError, ValueError) as exc:
                 raise AppError(
                     422,
