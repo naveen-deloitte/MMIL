@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./var/idp.db"
     object_root: Path = PROJECT_ROOT / "sample-data" / "uploads"
     document_type_path: Path = Path("./config/document-types/medical-report.v1.json")
+    # Directory of product catalogue JSON files (or one file). Missing path means no products.
+    product_catalogue_path: Path | None = PROJECT_ROOT / "config" / "products"
+    # One underwriting rule set (file, or a directory holding one *.json). Missing means no
+    # rules, no recommendation and no risk score.
+    underwriting_rules_path: Path | None = PROJECT_ROOT / "config" / "underwriting"
     storage_backend: StorageBackend = "local"
     queue_backend: QueueBackend = "database"
     scanner_backend: ScannerBackend = "development-basic"

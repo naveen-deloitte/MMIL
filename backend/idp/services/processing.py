@@ -147,8 +147,13 @@ class ProcessingService:
         self.worker_id = worker_id or f"{socket.gethostname()}-{id(self)}"
 
     def _provider_for(self, document_type: str) -> ExtractionProvider:
-        if document_type in {"kyc_individual", *IDENTITY_DOCUMENT_TYPES}:
-            # Identity documents are never sent to an external provider.
+        if document_type in {
+            "kyc_individual",
+            "financial_document",
+            "proposal_form",
+            *IDENTITY_DOCUMENT_TYPES,
+        }:
+            # Identity, financial and proposal documents are never sent to an external provider.
             return DeterministicLocalProvider()
         if self.provider is None:
             self.provider = build_provider(self.settings)
@@ -446,6 +451,8 @@ class ProcessingService:
                         )
                     )
                 document.latest_run_id = run.id
+                assessment_case_id = document.case_id
+                assessment_correlation = job.correlation_id
                 target = "review_required" if reviewable_count else "completed"
                 transition(job, document, target)
                 job.lease_owner = None
@@ -471,6 +478,7 @@ class ProcessingService:
                         "provider_item_rejections": provider_rejection_counts,
                     },
                 )
+            self._refresh_assessment(assessment_case_id, assessment_correlation)
         except ProcessingError as exc:
             logger.warning(
                 "Document processing failed job_id=%s stage=%s failure_code=%s",
@@ -491,6 +499,28 @@ class ProcessingService:
                 job_id,
                 ProcessingError("internal_processing_error", retryable=True),
                 stage=stage,
+            )
+
+    def _refresh_assessment(self, case_id: str, correlation_id: str) -> None:
+        """Update the case assessment after a document finishes. Never fails the document."""
+        from idp.assessment.service import safe_refresh
+
+        try:
+            with self.database.session() as session:
+                case = session.get(Case, case_id)
+                if case is not None:
+                    safe_refresh(
+                        session,
+                        case=case,
+                        settings=self.settings,
+                        actor="system:worker",
+                        correlation_id=correlation_id,
+                        trigger="document_processed",
+                    )
+        except Exception as exc:
+            logger.warning(
+                "Case assessment refresh failed after processing exception_type=%s",
+                type(exc).__name__,
             )
 
     def _record_failure(self, job_id: str, error: ProcessingError, *, stage: str) -> None:

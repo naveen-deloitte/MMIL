@@ -7,12 +7,19 @@ from fastapi.responses import FileResponse
 from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
+from idp.assessment.service import (
+    assessment_version,
+    assessment_view,
+    refresh_case_assessment,
+    safe_refresh,
+)
 from idp.audit import append_audit
 from idp.auth import Principal
 from idp.errors import AppError, ProcessingError
 from idp.models import (
     Case,
     Document,
+    utc_now,
     UnderwritingDecision,
     UnderwritingVariance,
     UnderwritingVarianceDecision,
@@ -49,6 +56,24 @@ from idp.identity.service import (
     build_identity_summary,
     record_identity_review,
     verify_identity,
+)
+from idp.products.pricing import calculate_quote
+from idp.proposal.service import build_proposal_view, proposal_document
+from idp.products.schemas import (
+    ProductDetailOut,
+    ProductListItem,
+    ProductListOut,
+    QuoteIn,
+    QuoteOut,
+    RatingInputsIn,
+    catalogue_info,
+    product_detail,
+)
+from idp.products.service import (
+    find_product,
+    quote_inputs,
+    requote_case_product,
+    resolve_case_product,
 )
 from idp.services.ingestion import find_case, ingest_document
 from idp.services.processing import retry_document
@@ -311,12 +336,24 @@ def create_case(
             "Case already exists",
             "A case with this identifier already exists.",
         )
+    product_name = payload.product_name
+    product_id = None
+    policy_details = None
+    if payload.product is not None:
+        # Name and policy details come from the catalogue; the quote is recomputed server-side.
+        product, policy_details = resolve_case_product(
+            request.app.state.product_catalogue, payload.product
+        )
+        product_name = product.product_name
+        product_id = product.product_id
     case = Case(
         tenant_id=principal.tenant_id,
         external_case_id=payload.external_case_id,
         applicant_display_name=payload.applicant_display_name,
         proposal_number=payload.proposal_number,
-        product_name=payload.product_name,
+        product_name=product_name,
+        product_id=product_id,
+        policy_details_json=policy_details,
         created_by=principal.subject,
         is_demo=False,
         workflow_stage=payload.workflow_stage,
@@ -332,9 +369,206 @@ def create_case(
         action="case.created",
         outcome="success",
         correlation_id=request.state.correlation_id,
-        metadata={"status": "created"},
+        metadata={"status": "created", "reason": product_id or "free_text_product"},
+    )
+    # Version 1 records the proposed terms before any evidence arrives.
+    safe_refresh(
+        session,
+        case=case,
+        settings=request.app.state.settings,
+        actor=principal.subject,
+        correlation_id=request.state.correlation_id,
+        trigger="case_created",
     )
     return CaseSummary.model_validate(case)
+
+
+@router.get("/cases/{case_id}/proposal", tags=["proposal"])
+def case_proposal(
+    request: Request,
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> dict:
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    return build_proposal_view(
+        session, case=case, catalogue=request.app.state.product_catalogue
+    )
+
+
+@router.get("/cases/{case_id}/proposal/document", tags=["proposal"])
+def case_proposal_document(
+    request: Request,
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> dict:
+    """Return the original proposal form uploaded to this case (never another case's)."""
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    original, documents = proposal_document(session, case)
+    append_audit(
+        session,
+        tenant_id=case.tenant_id,
+        case_id=case.id,
+        document_id=original.id if original else None,
+        actor_subject=principal.subject,
+        action="case.proposal_document_requested",
+        outcome="success" if original else "not_available",
+        correlation_id=request.state.correlation_id,
+        metadata={"document_type": "proposal_form", "result_count": len(documents)},
+    )
+    # "Not available" is a normal answer (200 with original=None) so the audit row is kept.
+    return {
+        "case_id": case.external_case_id,
+        "proposal_number": case.proposal_number,
+        "applicant_display_name": case.applicant_display_name,
+        "available": original is not None,
+        "message": None if original else "Proposal document not available. No proposal form has been uploaded to this case.",
+        "original": document_summary(session, original).model_dump(mode="json") if original else None,
+        "documents": [document_summary(session, item).model_dump(mode="json") for item in documents],
+    }
+
+
+@router.post("/cases/{case_id}/product/requote", response_model=CaseSummary, tags=["products"])
+def requote_case(
+    request: Request,
+    case_id: str,
+    payload: RatingInputsIn,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> CaseSummary:
+    principal.require("review")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    previous_status = ((case.policy_details_json or {}).get("indicative_quote") or {}).get("status")
+    details = requote_case_product(
+        request.app.state.product_catalogue,
+        case.policy_details_json or {},
+        payload.model_dump(),
+        actor=principal.subject,
+        when=utc_now().isoformat(),
+    )
+    case.policy_details_json = details
+    session.flush()
+    append_audit(
+        session,
+        tenant_id=case.tenant_id,
+        case_id=case.id,
+        actor_subject=principal.subject,
+        action="case.proposal_requoted",
+        outcome=details["indicative_quote"]["status"],
+        correlation_id=request.state.correlation_id,
+        metadata={
+            "status": details["indicative_quote"]["status"],
+            "reason": f"previous_{previous_status or 'none'}",
+        },
+    )
+    safe_refresh(
+        session,
+        case=case,
+        settings=request.app.state.settings,
+        actor=principal.subject,
+        correlation_id=request.state.correlation_id,
+        trigger="proposal_requoted",
+    )
+    return CaseSummary.model_validate(case)
+
+
+@router.get("/cases/{case_id}/assessment", tags=["assessment"])
+def case_assessment(
+    request: Request,
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> dict:
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    return assessment_view(session, case=case, settings=request.app.state.settings)
+
+
+@router.post("/cases/{case_id}/assessment/refresh", tags=["assessment"])
+def refresh_assessment(
+    request: Request,
+    case_id: str,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> dict:
+    principal.require("review")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    refresh_case_assessment(
+        session,
+        case=case,
+        settings=request.app.state.settings,
+        actor=principal.subject,
+        correlation_id=request.state.correlation_id,
+        trigger="manual_refresh",
+    )
+    return assessment_view(session, case=case, settings=request.app.state.settings)
+
+
+@router.get("/cases/{case_id}/assessment/versions/{version}", tags=["assessment"])
+def case_assessment_version(
+    case_id: str,
+    version: int,
+    principal: Principal = Depends(get_principal),
+    session: Session = Depends(get_session),
+) -> dict:
+    principal.require("view")
+    case = require_case_access(session, principal=principal, external_case_id=case_id)
+    item = assessment_version(session, case=case, version=version)
+    if item is None:
+        raise AppError(
+            404, "assessment_not_found", "Assessment not found", "That assessment version does not exist."
+        )
+    return item
+
+
+@router.get("/products", response_model=ProductListOut, tags=["products"])
+def list_products(
+    request: Request,
+    q: str = Query(default="", max_length=100),
+    principal: Principal = Depends(get_principal),
+) -> ProductListOut:
+    principal.require("view")
+    catalogue = request.app.state.product_catalogue
+    return ProductListOut(
+        items=[
+            ProductListItem(
+                product_id=product.product_id,
+                product_name=product.product_name,
+                insurer=product.insurer,
+                insurance_type=product.insurance_type,
+                catalogue=catalogue_info(source),
+            )
+            for product, source in catalogue.search(q)
+        ],
+        catalogue_configured=bool(catalogue.files),
+        demo_catalogue=any(source.is_demo for source in catalogue.files),
+    )
+
+
+@router.get("/products/{product_id}", response_model=ProductDetailOut, tags=["products"])
+def get_product(
+    request: Request,
+    product_id: str,
+    principal: Principal = Depends(get_principal),
+) -> ProductDetailOut:
+    principal.require("view")
+    product, source = find_product(request.app.state.product_catalogue, product_id)
+    return product_detail(product, source)
+
+
+@router.post("/products/{product_id}/quote", response_model=QuoteOut, tags=["products"])
+def quote_product(
+    request: Request,
+    product_id: str,
+    payload: QuoteIn,
+    principal: Principal = Depends(get_principal),
+) -> QuoteOut:
+    principal.require("view")
+    product, _ = find_product(request.app.state.product_catalogue, product_id)
+    return QuoteOut(**calculate_quote(product, quote_inputs(product, payload)).as_dict())
 
 
 @router.get("/cases/{case_id}/workspace", response_model=WorkspaceOut, tags=["medical evidence"])
@@ -779,6 +1013,16 @@ def submit_reviews(
         ],
     )
     session.flush()
+    case = session.get(Case, document.case_id)
+    if case is not None:
+        safe_refresh(
+            session,
+            case=case,
+            settings=request.app.state.settings,
+            actor=principal.subject,
+            correlation_id=request.state.correlation_id,
+            trigger="evidence_reviewed",
+        )
     return ReviewResponse(
         reviews=[
             {
@@ -893,6 +1137,14 @@ def identity_verify(
         correlation_id=request.state.correlation_id,
         aadhaar_verifier=getattr(request.app.state, "aadhaar_verifier", None),
         pan_verifier=getattr(request.app.state, "pan_verifier", None),
+    )
+    safe_refresh(
+        session,
+        case=case,
+        settings=request.app.state.settings,
+        actor=principal.subject,
+        correlation_id=request.state.correlation_id,
+        trigger="identity_checked",
     )
     return IdentityVerifyOut(reused_existing=reused, summary=summary)
 

@@ -35,6 +35,8 @@ interface DashboardWorkloadProps {
   demoCaseError: string | null;
   onOpen: (caseId: string) => void;
   onCreateCase: () => void;
+  /** Opens the case's original proposal document. Optional so existing callers keep working. */
+  onViewProposal?: (caseId: string) => void;
 }
 
 interface QueueRow {
@@ -139,6 +141,7 @@ export function DashboardWorkload({
   demoCaseError,
   onOpen,
   onCreateCase,
+  onViewProposal,
 }: DashboardWorkloadProps) {
   const queueCases = useMemo<QueueRow[]>(
     () => [
@@ -165,7 +168,6 @@ export function DashboardWorkload({
   const [slaStatus, setSlaStatus] = useState("all");
   const [decision, setDecision] = useState("all");
   const [slaLabel, setSlaLabel] = useState("all");
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortColumn, setSortColumn] = useState<SortColumn>("updated");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(0);
@@ -385,16 +387,6 @@ export function DashboardWorkload({
         </div>
 
         <div className="queue-filter-toolbar">
-          <button
-            type="button"
-            className={`secondary-button queue-filter-toggle ${filtersOpen ? "open" : ""}`}
-            aria-expanded={filtersOpen}
-            aria-controls="case-additional-filters"
-            onClick={() => setFiltersOpen((open) => !open)}
-          >
-            <span aria-hidden="true">⌄</span> Filters
-            <span className="active-filter-count">{activeFilters}</span>
-          </button>
           <label className="queue-page-size">
             Rows per page
             <select aria-label="Rows per page" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
@@ -405,74 +397,6 @@ export function DashboardWorkload({
             <button type="button" className="clear-filters-button" onClick={clearFilters}>Clear all filters</button>
           ) : null}
         </div>
-
-        {filtersOpen ? (
-          <div className="queue-advanced-filters" id="case-additional-filters" aria-label="Additional case filters">
-            <label className="queue-filter-select">
-              <span>Case status</span>
-              <select aria-label="Filter by case status" value={status} onChange={(event) => selectStatus(event.target.value as StatusFilter)}>
-                <option value="all">All statuses</option>
-                {([...KPI_STATUSES.map(({ status: item }) => item), "escalated"] as CaseStatus[]).map((value) => (
-                  <option value={value} key={value}>{labelForStatus(value)}</option>
-                ))}
-              </select>
-            </label>
-            <label className="queue-filter-select">
-              <span>Product type</span>
-              <select aria-label="Filter by product type" value={product} onChange={(event) => setProduct(event.target.value)}>
-                <option value="all">All products</option>
-                {products.map((value) => <option key={value} value={value}>{value}</option>)}
-              </select>
-            </label>
-            <label className="queue-filter-select">
-              <span>Assigned from</span>
-              <input aria-label="Assigned date from" type="date" value={assignedFrom} disabled={!hasAssignedDates} onChange={(event) => setAssignedFrom(event.target.value)} />
-            </label>
-            <label className="queue-filter-select">
-              <span>Assigned to</span>
-              <input aria-label="Assigned date to" type="date" value={assignedTo} disabled={!hasAssignedDates} onChange={(event) => setAssignedTo(event.target.value)} />
-            </label>
-            <label className="queue-filter-select">
-              <span>Resolved from</span>
-              <input aria-label="Resolution date from" type="date" value={resolvedFrom} disabled={!hasResolvedDates} onChange={(event) => setResolvedFrom(event.target.value)} />
-            </label>
-            <label className="queue-filter-select">
-              <span>Resolved to</span>
-              <input aria-label="Resolution date to" type="date" value={resolvedTo} disabled={!hasResolvedDates} onChange={(event) => setResolvedTo(event.target.value)} />
-            </label>
-            <label className="queue-filter-select">
-              <span>Priority</span>
-              <select aria-label="Filter by priority" value={priority} disabled={!hasPriorities} onChange={(event) => setPriority(event.target.value)}>
-                <option value="all">All priorities</option>
-                {PRIORITIES.map((value) => <option value={value} key={value}>{value}</option>)}
-              </select>
-            </label>
-            <label className="queue-filter-select">
-              <span>SLA status</span>
-              <select aria-label="Filter by SLA status" value={slaStatus} disabled={!hasSlaStatuses} onChange={(event) => setSlaStatus(event.target.value)}>
-                <option value="all">All SLA statuses</option>
-                {SLA_STATUSES.map((value) => <option value={value} key={value}>{value}</option>)}
-              </select>
-            </label>
-            <label className="queue-filter-select">
-              <span>Final decision</span>
-              <select aria-label="Filter by final decision" value={decision} disabled={decisions.length === 0} onChange={(event) => setDecision(event.target.value)}>
-                <option value="all">All decisions</option>
-                {decisions.map((value) => <option value={value} key={value}>{value}</option>)}
-              </select>
-            </label>
-            <label className="queue-filter-select">
-              <span>SLA / due date</span>
-              <select aria-label="Filter by SLA label" value={slaLabel} onChange={(event) => setSlaLabel(event.target.value)}>
-                <option value="all">All SLA labels</option>
-                {slaLabels.map((value) => <option value={value} key={value}>{value}</option>)}
-              </select>
-            </label>
-            <p className="queue-data-limitation">
-              Assignment and resolution dates, priority, structured SLA status, and final decisions are unavailable when the case API does not provide them; those filters are disabled rather than inferred.
-            </p>
-          </div>
-        ) : null}
 
         {queueCases.length === 0 ? (
           <div className="queue-empty-state">
@@ -497,14 +421,12 @@ export function DashboardWorkload({
                   <th scope="col">{sortButton("product", "Product Type")}</th>
                   <th scope="col">{sortButton("assigned", "Assigned Date")}</th>
                   <th scope="col">{sortButton("status", "Current Status")}</th>
-                  <th scope="col">{sortButton("priority", "Priority")}</th>
                   <th scope="col">{sortButton("sla", "SLA / Due Date")}</th>
-                  <th scope="col">{sortButton("updated", "Last Updated")}</th>
                   <th scope="col">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {pageCases.map(({ case: item, lastActivityAt, isDemo }) => {
+                {pageCases.map(({ case: item, isDemo }) => {
                   const currentStatus = statusForStage(item.workflow_stage);
                   const resolved = currentStatus === "resolved";
                   return (
@@ -518,18 +440,32 @@ export function DashboardWorkload({
                           <span aria-hidden="true" />{labelForStatus(currentStatus)}
                         </span>
                       </td>
-                      <td data-label="Priority">{item.priority ?? <span className="unavailable-cell">Not provided</span>}</td>
                       <td data-label="SLA / Due Date"><span className="sla-label-cell">{item.sla_label && item.sla_label.toLocaleLowerCase() !== "not set" ? item.sla_label : "Not provided"}</span></td>
-                      <td data-label="Last Updated">{dateValue(lastActivityAt)}</td>
                       <td data-label="Action">
-                        <button
-                          type="button"
-                          className="open-case-button"
-                          aria-label={`${resolved ? "View resolved case" : currentStatus === "under_review" ? "Continue review" : "View case"} ${item.external_case_id}`}
-                          onClick={() => onOpen(item.external_case_id)}
-                        >
-                          {resolved ? "View case" : currentStatus === "under_review" ? "Continue review" : "View case"}
-                        </button>
+                        <div className="queue-action-buttons">
+                          <button
+                            type="button"
+                            className="open-case-button"
+                            aria-label={`${resolved ? "View resolved case" : currentStatus === "under_review" ? "Continue review" : "View case"} ${item.external_case_id}`}
+                            onClick={() => onOpen(item.external_case_id)}
+                          >
+                            {resolved ? "View case" : currentStatus === "under_review" ? "Continue review" : "View case"}
+                          </button>
+                          {!isDemo && onViewProposal ? (
+                            <button
+                              type="button"
+                              className="view-proposal-button"
+                              aria-label={`View proposal ${item.external_case_id}`}
+                              onClick={() => onViewProposal(item.external_case_id)}
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                                <path d="M14 3v5h5M9 13h6M9 17h6" />
+                              </svg>
+                              View Proposal
+                            </button>
+                          ) : null}
+                        </div>
                         {resolved ? (
                           <details className="resolved-decision-details">
                             <summary>Decision details</summary>

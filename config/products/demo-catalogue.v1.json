@@ -1,0 +1,127 @@
+{
+  "catalogue_id": "demo-catalogue",
+  "catalogue_version": "1.0.0",
+  "source": "DEMO DATA. Fictional insurers, products and rates for local development only. Replace with the insurer's approved product catalogue.",
+  "is_demo": true,
+  "effective_date": "2026-11-01",
+  "products": [
+    {
+      "product_id": "demo-term-shield",
+      "product_name": "Demo Term Shield",
+      "insurer": "Demo Life Assurance Ltd (fictional)",
+      "insurance_type": "Term life insurance",
+      "plan_name": "Demo Term Shield - Level Cover",
+      "description": "Fictional level-cover term plan used to demonstrate rate-table pricing.",
+      "cover_type": "Level term life cover (demo)",
+      "death_benefit": "Demo wording: the sum assured is paid if the life assured dies during the policy term.",
+      "maturity_benefit": "Not applicable: this demo term plan has no maturity benefit.",
+      "riders": [
+        {
+          "rider_id": "demo-adb",
+          "name": "Demo Accidental Death Benefit rider",
+          "description": "Fictional rider paying an additional amount on accidental death.",
+          "sum_assured": { "currency": "INR", "options": [1000000, 2500000, 5000000] }
+        },
+        {
+          "rider_id": "demo-wop",
+          "name": "Demo Waiver of Premium rider",
+          "description": "Fictional rider waiving future premiums on total permanent disability."
+        }
+      ],
+      "additional_benefits": ["Demo terminal illness acceleration (fictional wording)"],
+      "entry_age_min": 18,
+      "entry_age_max": 60,
+      "sum_assured": { "currency": "INR", "options": [2500000, 5000000, 10000000] },
+      "premium_frequencies": ["annual", "half_yearly", "monthly"],
+      "policy_terms": { "options": [10, 20, 30] },
+      "premium_payment_terms": { "options": ["policy_term"] },
+      "pricing": {
+        "method": "rate_per_thousand_sum_assured",
+        "basis_note": "Demo annual rate per 1,000 sum assured by entry age band, gender and smoking status, adjusted by a modal factor. Fictional values.",
+        "rating_factors": ["age", "gender", "smoker"],
+        "frequency_factors": { "annual": 1.0, "half_yearly": 0.51, "monthly": 0.0875 },
+        "tax_rate": 0.18,
+        "rounding_decimals": 0,
+        "rate_table": [
+          { "age_min": 18, "age_max": 30, "gender": "male", "smoker": false, "rate": 0.85 },
+          { "age_min": 18, "age_max": 30, "gender": "male", "smoker": true, "rate": 1.45 },
+          { "age_min": 18, "age_max": 30, "gender": "female", "smoker": false, "rate": 0.72 },
+          { "age_min": 18, "age_max": 30, "gender": "female", "smoker": true, "rate": 1.22 },
+          { "age_min": 31, "age_max": 40, "gender": "male", "smoker": false, "rate": 1.20 },
+          { "age_min": 31, "age_max": 40, "gender": "male", "smoker": true, "rate": 2.10 },
+          { "age_min": 31, "age_max": 40, "gender": "female", "smoker": false, "rate": 1.02 },
+          { "age_min": 31, "age_max": 40, "gender": "female", "smoker": true, "rate": 1.78 },
+          { "age_min": 41, "age_max": 50, "gender": "male", "smoker": false, "rate": 2.35 },
+          { "age_min": 41, "age_max": 50, "gender": "male", "smoker": true, "rate": 4.10 },
+          { "age_min": 41, "age_max": 50, "gender": "female", "smoker": false, "rate": 1.98 },
+          { "age_min": 41, "age_max": 50, "gender": "female", "smoker": true, "rate": 3.45 },
+          { "age_min": 51, "age_max": 60, "gender": "male", "smoker": false, "rate": 4.60 },
+          { "age_min": 51, "age_max": 60, "gender": "male", "smoker": true, "rate": 7.90 },
+          { "age_min": 51, "age_max": 60, "gender": "female", "smoker": false, "rate": 3.85 },
+          { "age_min": 51, "age_max": 60, "gender": "female", "smoker": true, "rate": 6.60 }
+        ]
+      }
+    },
+    {
+      "product_id": "demo-savings-builder",
+      "product_name": "Demo Savings Builder",
+      "insurer": "Demo Life Assurance Ltd (fictional)",
+      "insurance_type": "Savings / endowment",
+      "plan_name": "Demo Savings Builder - Limited Pay",
+      "description": "Fictional limited-pay savings plan used to demonstrate a fixed premium table.",
+      "cover_type": "Endowment savings with life cover (demo)",
+      "death_benefit": "Demo wording: the sum assured is paid on death during the policy term.",
+      "maturity_benefit": "Demo wording: the sum assured is paid at the end of the policy term.",
+      "riders": [],
+      "additional_benefits": [],
+      "entry_age_min": 18,
+      "entry_age_max": 55,
+      "sum_assured": { "currency": "INR", "options": [500000, 1000000] },
+      "premium_frequencies": ["annual", "monthly"],
+      "policy_terms": { "options": [15] },
+      "premium_payment_terms": { "options": [10] },
+      "pricing": {
+        "method": "fixed_premium_table",
+        "basis_note": "Demo premium table by sum assured and frequency. Fictional values; tax not included.",
+        "rating_factors": [],
+        "rounding_decimals": 0,
+        "premiums": [
+          { "sum_assured": 500000, "premium_frequency": "annual", "amount": 48000 },
+          { "sum_assured": 500000, "premium_frequency": "monthly", "amount": 4200 },
+          { "sum_assured": 1000000, "premium_frequency": "annual", "amount": 95000 },
+          { "sum_assured": 1000000, "premium_frequency": "monthly", "amount": 8300 }
+        ]
+      }
+    },
+    {
+      "product_id": "demo-health-secure",
+      "product_name": "Demo Health Secure",
+      "insurer": "Demo General Insurance Co (fictional)",
+      "insurance_type": "Health insurance",
+      "description": "Fictional one-year health plan with age-banded demo pricing.",
+      "cover_type": "Hospitalisation indemnity cover (demo)",
+      "death_benefit": "Not applicable: this demo health plan has no death benefit.",
+      "maturity_benefit": "Not applicable: this demo health plan has no maturity benefit.",
+      "entry_age_min": 18,
+      "entry_age_max": 65,
+      "sum_assured": { "currency": "INR", "options": [500000, 1000000, 2500000] },
+      "premium_frequencies": ["annual"],
+      "policy_terms": { "options": [1] },
+      "premium_payment_terms": { "options": ["policy_term"] },
+      "pricing": {
+        "method": "rate_per_thousand_sum_assured",
+        "basis_note": "Demo annual rate per 1,000 sum insured by entry age band. Fictional values.",
+        "rating_factors": ["age"],
+        "frequency_factors": { "annual": 1.0 },
+        "tax_rate": 0.18,
+        "rounding_decimals": 0,
+        "rate_table": [
+          { "age_min": 18, "age_max": 35, "rate": 12.0 },
+          { "age_min": 36, "age_max": 45, "rate": 16.0 },
+          { "age_min": 46, "age_max": 55, "rate": 24.0 },
+          { "age_min": 56, "age_max": 65, "rate": 36.0 }
+        ]
+      }
+    }
+  ]
+}

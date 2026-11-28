@@ -27,8 +27,19 @@ import {
   SummaryView,
   VitalsView,
 } from "./components/EvidenceViews";
+import {
+  AssessmentFindings,
+  AssessmentKpis,
+  ProposedPremiumPrompt,
+  TermsComparison,
+  useCaseAssessment,
+} from "./components/CaseAssessment";
 import { IdentityVerificationView } from "./components/IdentityViews";
+import { FinancialViews } from "./components/FinancialViews";
 import { KycViews, kycViews } from "./components/KycViews";
+import { ProductSelector } from "./components/ProductSelector";
+import { ProposalDetails, useProposal } from "./components/ProposalDetails";
+import { ProposalViewer } from "./components/ProposalViewer";
 import { SourceViewer } from "./components/SourceViewer";
 import { ReviewDialog } from "./components/ReviewDialog";
 import {
@@ -47,6 +58,7 @@ import type {
   DocumentSummary,
   ExtractionHistory,
   EvidenceField,
+  ProductSelection,
   ReviewPayload,
   Workspace,
 } from "./types";
@@ -59,9 +71,16 @@ type CaseSection =
   | "Identity Verification"
   | "Underwriting Assessment"
   | "Underwriting Variance Review";
-type AssessmentView = "Overview" | "Underwriting" | "Decision" | "Simulator" | "Ask AI" | "Audit";
-type UploadDocumentType = "medical_report" | "kyc_individual" | "aadhaar_card" | "pan_card";
+type AssessmentView = "Overview" | "Underwriting" | "Decision" | "Ask AI" | "Audit";
+type UploadDocumentType =
+  | "medical_report"
+  | "kyc_individual"
+  | "aadhaar_card"
+  | "pan_card"
+  | "financial_document";
 const identityDocumentTypes = new Set(["aadhaar_card", "pan_card"]);
+// Documents reviewed as a plain list of extracted fields (no medical/KYC tabs).
+const fieldListDocumentTypes = new Set([...identityDocumentTypes, "financial_document", "proposal_form"]);
 
 const caseSections: CaseSection[] = [
   "Document Review",
@@ -76,7 +95,6 @@ const assessmentViews: AssessmentView[] = [
   "Overview",
   "Underwriting",
   "Decision",
-  "Simulator",
   "Ask AI",
   "Audit",
 ];
@@ -255,6 +273,7 @@ export default function App() {
   ) ?? [];
   const isKycDocument = selectedDocument?.document_type === "kyc_individual";
   const isIdentityDocument = identityDocumentTypes.has(selectedDocument?.document_type ?? "");
+  const isFieldListDocument = fieldListDocumentTypes.has(selectedDocument?.document_type ?? "");
   const visibleViews = isKycDocument ? kycViews : medicalViews;
   const activeKycView = kycViews.find((view) => view.id === activeView)?.id ?? "overview";
   const selectedView = isKycDocument ? activeKycView : activeView;
@@ -521,6 +540,7 @@ export default function App() {
                   || value === "kyc_individual"
                   || value === "aadhaar_card"
                   || value === "pan_card"
+                  || value === "financial_document"
                 ) {
                   setUploadDocumentType(value);
                 }
@@ -530,6 +550,7 @@ export default function App() {
               <option value="kyc_individual">Individual KYC</option>
               <option value="aadhaar_card">Aadhaar Card</option>
               <option value="pan_card">PAN Card</option>
+              <option value="financial_document">Financial document</option>
             </select>
           </label>
           <button type="button" className="primary-button" onClick={() => fileInput.current?.click()}>Add document</button>
@@ -593,7 +614,7 @@ export default function App() {
                     setRemovalDocument(document);
                   }}
                 />
-                {!isIdentityDocument ? (
+                {!isFieldListDocument ? (
                 <nav className="medical-tabs" aria-label={isKycDocument ? "KYC assessment views" : "Medical assessment views"}>
                   {visibleViews.map((view) => (
                     <button
@@ -617,12 +638,26 @@ export default function App() {
                     <strong>No documents uploaded</strong>
                     <p>Add a document to review extracted fields and source citations.</p>
                   </div>
-                ) : isIdentityDocument ? (
+                ) : selectedDocument.document_type === "financial_document" ? (
+                  <FinancialViews
+                    document={selectedDocument}
+                    fields={latestDocumentFields}
+                    emptyMessage={
+                      selectedDocument.status === "failed"
+                        ? `Processing failed${selectedDocument.failure_code ? `: ${selectedDocument.failure_code.replaceAll("_", " ")}` : ""}. Retry from the document list.`
+                        : "No extracted fields yet."
+                    }
+                    onCitation={openCitation}
+                    onReview={(item) => { setReviewError(null); setReviewField(item); }}
+                  />
+                ) : isFieldListDocument ? (
                   <div className="identity-document-fields">
                     {latestDocumentFields.length === 0 ? (
                       <p className="data-note">
                         {selectedDocument.status === "failed"
-                          ? "Processing failed. Open Identity Verification for the action required."
+                          ? isIdentityDocument
+                            ? "Processing failed. Open Identity Verification for the action required."
+                            : `Processing failed${selectedDocument.failure_code ? `: ${selectedDocument.failure_code.replaceAll("_", " ")}` : ""}. Retry from the document list.`
                           : "No extracted fields yet."}
                       </p>
                     ) : null}
@@ -634,7 +669,13 @@ export default function App() {
                         onReview={(item) => { setReviewError(null); setReviewField(item); }}
                       />
                     ))}
-                    <p className="data-note">Open Identity Verification for matching and verification status.</p>
+                    <p className="data-note">
+                      {isIdentityDocument
+                        ? "Open Identity Verification for matching and verification status."
+                        : selectedDocument.document_type === "proposal_form"
+                          ? "Values on the proposal form are applicant declarations. See Case overview › Proposal & policy details."
+                          : "Extracted values are used in the case assessment once reviewed."}
+                    </p>
                   </div>
                 ) : isKycDocument ? (
                   <KycViews
@@ -748,6 +789,12 @@ export default function App() {
                     onOpenDocuments={() => setActiveSection("Document Review")}
                     onOpenAssessment={() => setActiveSection("Document Review")}
                     onOpenReview={() => setActiveSection("HITL Review")}
+                    onAiCitation={openAnalysisCitation}
+                    onCaseUpdated={() => void refresh(true)}
+                    onOpenDocument={(documentId) => {
+                      const target = workspace.documents.find((item) => item.id === documentId);
+                      if (target) openSource(target);
+                    }}
                   />
                 ) : null}
                 {assessmentView === "Underwriting" ? (
@@ -772,13 +819,13 @@ export default function App() {
                 {assessmentView === "Decision" ? (
                   <DecisionSection
                     workspace={workspace}
+                    onAiCitation={openAnalysisCitation}
                     onReview={() => setActiveSection("HITL Review")}
                     onRequirements={() => setReviewDrawerOpen(true)}
                     onOpenAssessment={() => setActiveSection("Document Review")}
                     onDecisionRecorded={() => { void refresh(true); void refreshCases(); }}
                   />
                 ) : null}
-                {assessmentView === "Simulator" ? <SimulatorSection workspace={workspace} /> : null}
                 {assessmentView === "Ask AI" ? (
                   <AskAiSection
                     onOpenAssessment={() => setActiveSection("Document Review")}
@@ -893,8 +940,12 @@ function CasesHome({
     proposal_number: "",
     product_name: "",
   });
+  const [productSelection, setProductSelection] = useState<ProductSelection | null>(null);
+  // Free-text product entry is only offered when no product catalogue is configured.
+  const [catalogueAvailable, setCatalogueAvailable] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [proposalCaseId, setProposalCaseId] = useState<string | null>(null);
   const refreshedAt = useMemo(
     () => (loading || error ? null : new Date()),
     [cases, error, loading],
@@ -902,10 +953,19 @@ function CasesHome({
 
   async function submitCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (catalogueAvailable && !productSelection) {
+      setFormError("Select an insurance product.");
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
-      await onCreate(form);
+      const { product_name, ...identity } = form;
+      await onCreate(
+        catalogueAvailable && productSelection
+          ? { ...identity, product: productSelection }
+          : { ...identity, product_name },
+      );
     } catch (submitError) {
       setFormError(messageFor(submitError));
     } finally {
@@ -999,16 +1059,22 @@ function CasesHome({
                     onChange={(event) => updateField("proposal_number", event.target.value)}
                   />
                 </label>
-                <label className="form-field">
-                  Product
-                  <input
-                    required
-                    maxLength={200}
-                    value={form.product_name}
-                    onChange={(event) => updateField("product_name", event.target.value)}
-                  />
-                </label>
+                {catalogueAvailable === false ? (
+                  <label className="form-field">
+                    Product
+                    <input
+                      required
+                      maxLength={200}
+                      value={form.product_name ?? ""}
+                      onChange={(event) => updateField("product_name", event.target.value)}
+                    />
+                  </label>
+                ) : null}
               </div>
+              <ProductSelector
+                onCatalogueLoaded={(list) => setCatalogueAvailable(list.catalogue_configured && list.items.length > 0)}
+                onChange={(selection) => setProductSelection(selection)}
+              />
               {formError ? <div className="form-error" role="alert">{formError}</div> : null}
               <div className="case-form-actions">
                 <button type="button" className="secondary-button" onClick={() => setFormOpen(false)} disabled={saving}>
@@ -1032,9 +1098,13 @@ function CasesHome({
             demoCaseError={demoCaseError}
             onOpen={onOpen}
             onCreateCase={() => { setFormOpen(true); setFormError(null); }}
+            onViewProposal={setProposalCaseId}
           />
         ) : null}
       </main>
+      {proposalCaseId ? (
+        <ProposalViewer caseId={proposalCaseId} onClose={() => setProposalCaseId(null)} />
+      ) : null}
       <div className="live-region" aria-live="polite" aria-atomic="true">{notice}</div>
     </div>
   );
@@ -1155,13 +1225,25 @@ function OverviewSection({
   onOpenDocuments,
   onOpenAssessment,
   onOpenReview,
+  onAiCitation,
+  onCaseUpdated,
+  onOpenDocument,
 }: {
   workspace: Workspace;
   onOpenDocuments: () => void;
   onOpenAssessment: () => void;
   onOpenReview: () => void;
+  onAiCitation: (citation: Citation) => void;
+  onCaseUpdated: () => void;
+  onOpenDocument: (documentId: string) => void;
 }) {
   const { case: caseInfo, documents, counts, fields } = workspace;
+  const refreshKey = workspaceRefreshKey(workspace);
+  const assessment = useCaseAssessment(caseInfo.external_case_id, refreshKey);
+  const proposal = useProposal(caseInfo.external_case_id, `${refreshKey}|${assessment.view?.latest?.version ?? 0}`);
+  const policy = (caseInfo.policy_details ?? null) as {
+    rating_inputs?: { age?: number | null; gender?: string | null } | null;
+  } | null;
   const pending = fields.filter((field) => field.review_state === "pending").length;
   const completeness = documents.length > 0 && fields.length > 0;
   const nextAction = documents.length === 0
@@ -1176,37 +1258,53 @@ function OverviewSection({
         <div><span className="eyebrow">Underwriting workspace</span><h2>Case overview</h2></div>
         <span className="tag neutral">{caseInfo.workflow_stage.replaceAll("_", " ")}</span>
       </div>
-      <div className="overview-kpi-grid">
-        <OverviewKpi label="AI recommendation" value="Not available" detail="No underwriting recommendation connected" />
-        <OverviewKpi label="Financial cover exposure" value="Not supplied" detail="Cover amounts are not connected" />
-        <OverviewKpi label="Premium impact" value="Not supplied" detail="Approved product rates are not connected" />
-        <OverviewKpi label="Risk score" value="Not assessed" detail="No approved risk model connected" />
-      </div>
-      <div className="overview-profile-grid">
+      <AssessmentKpis view={assessment.view} loading={assessment.loading} error={assessment.error} />
+      <ProposedPremiumPrompt
+        caseId={caseInfo.external_case_id}
+        view={assessment.view}
+        onUpdated={() => {
+          onCaseUpdated();
+          void assessment.reload();
+        }}
+      />
+      <div className="overview-proposal-layout">
         <section className="card-section">
           <div className="section-heading"><h3>Applicant profile</h3></div>
           <OverviewRow label="Life assured" value={caseInfo.applicant_display_name} />
-          <OverviewRow label="Age / gender" value="Not supplied" />
+          <OverviewRow
+            label="Age / gender"
+            value={policy?.rating_inputs?.age != null || policy?.rating_inputs?.gender
+              ? `${policy?.rating_inputs?.age ?? "—"} / ${policy?.rating_inputs?.gender ?? "—"}`
+              : "Not supplied"}
+          />
           <OverviewRow label="City" value="Not supplied" />
-          <OverviewRow label="Occupation" value="Not supplied" />
-          <OverviewRow label="Annual income" value="Not supplied" />
-          <OverviewRow label="Channel" value="Not supplied" />
           <OverviewRow label="Case ID" value={caseInfo.external_case_id} />
           <OverviewRow label="Workflow stage" value={caseInfo.workflow_stage.replaceAll("_", " ")} />
           <OverviewRow label="SLA" value={caseInfo.sla_label || "Not supplied"} />
+          <p className="analysis-disclaimer">
+            Occupation, annual income and channel are shown in Proposal & policy details with their source.
+          </p>
         </section>
-        <section className="card-section">
-          <div className="section-heading"><h3>Proposal & policy details</h3></div>
-          <OverviewRow label="Product" value={caseInfo.product_name} />
-          <OverviewRow label="Plan option" value="Not supplied" />
-          <OverviewRow label="Proposal" value={caseInfo.proposal_number} />
-          <OverviewRow label="Sum assured" value="Not supplied" />
-          <OverviewRow label="Policy term / PPT" value="Not supplied" />
-          <OverviewRow label="Base premium" value="Not supplied" />
-          <OverviewRow label="Nominee" value="Not supplied" />
-          <OverviewRow label="Uploaded documents" value={String(documents.length)} />
-        </section>
+        <ProposalDetails
+          view={proposal.view}
+          loading={proposal.loading}
+          error={proposal.error}
+          onRetry={() => void proposal.reload()}
+          onCitation={onAiCitation}
+          onOpenProposal={() => {
+            if (proposal.view?.proposal_document) onOpenDocument(proposal.view.proposal_document.id);
+          }}
+        />
       </div>
+      <AssessmentFindings
+        view={assessment.view}
+        loading={assessment.loading}
+        error={assessment.error}
+        refreshing={assessment.refreshing}
+        canRefresh
+        onRefresh={() => void assessment.refresh()}
+        onCitation={onAiCitation}
+      />
       <div className="overview-insights-grid">
         <section className="card-section">
           <div className="section-heading"><h3>Risk heatmap</h3></div>
@@ -1214,7 +1312,7 @@ function OverviewSection({
             <OverviewHeatCell title="KYC" value={documents.some((doc) => doc.document_type === "kyc_individual") ? "Evidence available" : "Not supplied"} />
             <OverviewHeatCell title="AML" value="Not connected" />
             <OverviewHeatCell title="Medical" value={documents.some((doc) => doc.document_type === "medical_report") ? "Review evidence" : "Not supplied"} warning={documents.some((doc) => doc.document_type === "medical_report")} />
-            <OverviewHeatCell title="Financial" value="Not connected" />
+            <OverviewHeatCell title="Financial" value={documents.some((doc) => doc.document_type === "financial_document") ? "Evidence available" : "Not supplied"} />
             <OverviewHeatCell title="IIB" value="Not connected" />
             <OverviewHeatCell title="Fraud" value="Not connected" />
           </div>
@@ -1269,6 +1367,15 @@ const documentRequestSections: ReadonlySet<string> = new Set([
   "Occupation & lifestyle",
 ]);
 
+/** Field sections that hold medical evidence. Bank, identity, contact and consent fields belong to other tabs. */
+const medicalUiSections: ReadonlySet<EvidenceField["ui_section"]> = new Set([
+  "summary",
+  "vitals",
+  "labs",
+  "checks",
+  "assessment",
+]);
+
 /** Opens the user's mail app with a prefilled document request. Recipient is left blank on purpose. */
 function buildDocumentRequestMailto(
   caseInfo: { applicant: string; caseId: string; proposal: string },
@@ -1318,7 +1425,7 @@ function UnderwritingSection({
   onReview: (field: EvidenceField) => void;
 }) {
   const selectedFields = fields.filter((field) => {
-    if (activeSection === "Medical evidence") return field.ui_section !== "identity" && field.ui_section !== "contact";
+    if (activeSection === "Medical evidence") return medicalUiSections.has(field.ui_section);
     if (activeSection === "TSAR & compliance") return field.ui_section === "identity" || field.ui_section === "consent";
     if (activeSection === "Financial review") return field.ui_section === "bank_details";
     return false;
@@ -1362,7 +1469,11 @@ function UnderwritingSection({
             </div>
           ) : (
             <div className="section-empty-state">
-              <strong>{isKycDocument && activeSection === "TSAR & compliance" ? "Identity evidence is not included in this document." : "No connected evidence for this section."}</strong>
+              <strong>{isKycDocument && activeSection === "TSAR & compliance"
+                ? "Identity evidence is not included in this document."
+                : isKycDocument && activeSection === "Medical evidence"
+                  ? "This is a KYC document. Medical evidence is not included in it."
+                  : "No connected evidence for this section."}</strong>
               <p>Upload the relevant case document or connect the approved source before assessing this area.</p>
               <div className="section-empty-actions">
                 {documentRequestSections.has(activeSection) ? (
@@ -1782,50 +1893,60 @@ function formatEvidenceValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function SimulatorSection({ workspace }: { workspace: Workspace }) {
-  return (
-    <div className="workbench-section">
-      <div className="section-intro"><div><span className="eyebrow">Illustrative only</span><h2>Underwriting simulator</h2><p>Review factors that would be needed for a case-level simulation.</p></div></div>
-      <div className="overview-profile-grid">
-        <section className="card-section">
-          <div className="section-heading"><h3>Case inputs</h3></div>
-          <OverviewRow label="Product" value={workspace.case.product_name} />
-          <OverviewRow label="Source documents" value={String(workspace.documents.length)} />
-          <OverviewRow label="Reviewed evidence fields" value={String(workspace.counts.accepted + workspace.counts.corrected)} />
-          <OverviewRow label="Premium / sum assured" value="Not supplied" />
-        </section>
-        <section className="card-section">
-          <div className="section-heading"><h3>Simulation status</h3><span className="tag warning">Unavailable</span></div>
-          <p className="quiet-message">Approved product rates, coverage inputs, and underwriting rules are not connected. A premium or loading estimate cannot be calculated from the available case data.</p>
-          <div className="callout amber">No simulated result is generated. Connect approved rates and product rules before using this section for a decision.</div>
-        </section>
-      </div>
-    </div>
-  );
-}
-
 function DecisionSection({
   workspace,
   onReview,
   onRequirements,
   onOpenAssessment,
   onDecisionRecorded,
+  onAiCitation,
 }: {
   workspace: Workspace;
   onReview: () => void;
   onRequirements: () => void;
   onOpenAssessment: () => void;
   onDecisionRecorded: () => void;
+  onAiCitation: (citation: Citation) => void;
 }) {
+  const assessment = useCaseAssessment(workspace.case.external_case_id, workspaceRefreshKey(workspace));
   return (
-    <UnderwritingDecisionCockpit
-      workspace={workspace}
-      onReview={onReview}
-      onRequirements={onRequirements}
-      onOpenAssessment={onOpenAssessment}
-      onDecisionRecorded={onDecisionRecorded}
-    />
+    <>
+      {/* Shown for the underwriter's independent review. Nothing here records a decision. */}
+      <AssessmentFindings
+        view={assessment.view}
+        loading={assessment.loading}
+        error={assessment.error}
+        refreshing={assessment.refreshing}
+        canRefresh={false}
+        onRefresh={() => void assessment.refresh()}
+        onCitation={onAiCitation}
+      />
+      {assessment.view ? <TermsComparison view={assessment.view} /> : null}
+      <UnderwritingDecisionCockpit
+        workspace={workspace}
+        onReview={onReview}
+        onRequirements={onRequirements}
+        onOpenAssessment={onOpenAssessment}
+        onDecisionRecorded={() => {
+          onDecisionRecorded();
+          void assessment.reload();
+        }}
+      />
+    </>
   );
+}
+
+function workspaceRefreshKey(workspace: Workspace): string {
+  const { counts } = workspace;
+  return [
+    workspace.case.external_case_id,
+    workspace.case.final_decision ?? "",
+    counts.pending,
+    counts.accepted,
+    counts.corrected,
+    counts.rejected,
+    workspace.documents.map((doc) => `${doc.id}:${doc.status}`).join(","),
+  ].join("|");
 }
 
 function AskAiSection({ onOpenAssessment, onReview }: { onOpenAssessment: () => void; onReview: () => void }) {

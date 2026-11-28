@@ -69,6 +69,9 @@ class Case(Base):
     applicant_display_name: Mapped[str] = mapped_column(String(200), nullable=False)
     proposal_number: Mapped[str] = mapped_column(String(100), nullable=False)
     product_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    # Catalogue product and the policy details selected when the case was created (snapshot).
+    product_id: Mapped[str | None] = mapped_column(String(100))
+    policy_details_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_by: Mapped[str | None] = mapped_column(String(200))
     is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     workflow_stage: Mapped[str] = mapped_column(String(50), nullable=False, default="human_review")
@@ -471,3 +474,27 @@ class IdentityReview(Base):
     reviewer_subject: Mapped[str] = mapped_column(String(200), nullable=False)
     reviewed_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
+
+
+class CaseAssessment(Base):
+    """Versioned case-level underwriting assessment. Each input change creates a new version."""
+
+    __tablename__ = "case_assessments"
+    __table_args__ = (
+        UniqueConstraint("case_id", "version", name="uq_case_assessment_version"),
+        Index("ix_case_assessment_tenant_case", "tenant_id", "case_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    tenant_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    trigger: Mapped[str] = mapped_column(String(50), nullable=False)
+    engine_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    rule_set_id: Mapped[str | None] = mapped_column(String(100))
+    rule_set_version: Mapped[str | None] = mapped_column(String(30))
+    result_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)

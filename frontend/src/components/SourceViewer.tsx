@@ -11,6 +11,10 @@ interface SourceViewerProps {
   onClose: () => void;
   onDocumentChange: (document: DocumentSummary) => void;
   onPageChange: (page: number) => void;
+  /** Optional heading label, for example "Proposal document". */
+  eyebrow?: string;
+  /** Optional context shown before the version line, for example the proposal number. */
+  context?: string;
 }
 
 const processingStatuses = new Set(["uploaded", "scanning", "ocr", "extracting"]);
@@ -21,6 +25,8 @@ export function SourceViewer({
   onClose,
   onDocumentChange,
   onPageChange,
+  eyebrow = "Source document",
+  context,
 }: SourceViewerProps) {
   const selected = useMemo(
     () => documents.find((document) => document.id === selection.documentId) ?? documents[0],
@@ -38,8 +44,8 @@ export function SourceViewer({
   return (
     <DrawerShell
       title={selected?.filename ?? "No document selected"}
-      eyebrow="Source document"
-      subtitle={selected ? `Version ${selected.version} · ${formatBytes(selected.size_bytes)}` : undefined}
+      eyebrow={eyebrow}
+      subtitle={selected ? `${context ? `${context} · ` : ""}Version ${selected.version} · ${formatBytes(selected.size_bytes)}` : undefined}
       onClose={onClose}
       closeLabel="Close source document"
       drawerClassName="source-drawer"

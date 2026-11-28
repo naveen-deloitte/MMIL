@@ -31,6 +31,8 @@ export interface CaseSummary {
   underwriter_subject?: string | null;
   decision_rationale?: string | null;
   is_demo?: boolean;
+  product_id?: string | null;
+  policy_details?: Record<string, unknown> | null;
 }
 
 export type VarianceDecisionType = "retain_original" | "accept_suggested" | "custom_value" | "refer";
@@ -87,7 +89,104 @@ export interface CaseCreateInput {
   external_case_id: string;
   applicant_display_name: string;
   proposal_number: string;
+  /** Legacy free-text product. Omitted when a catalogue product is selected. */
+  product_name?: string;
+  product?: ProductSelection;
+}
+
+export type PremiumFrequency = "single" | "annual" | "half_yearly" | "quarterly" | "monthly";
+
+export interface CatalogueInfo {
+  catalogue_id: string;
+  catalogue_version: string;
+  source: string;
+  is_demo: boolean;
+  effective_date: string | null;
+}
+
+export interface ProductListItem {
+  product_id: string;
   product_name: string;
+  insurer: string;
+  insurance_type: string | null;
+  catalogue: CatalogueInfo;
+}
+
+export interface ProductList {
+  items: ProductListItem[];
+  catalogue_configured: boolean;
+  demo_catalogue: boolean;
+}
+
+export interface AmountRange {
+  currency: string;
+  options?: number[];
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface TermRange {
+  options?: Array<number | "policy_term">;
+  min?: number;
+  max?: number;
+}
+
+export interface ProductDetail {
+  product_id: string;
+  product_name: string;
+  insurer: string;
+  insurance_type: string | null;
+  plan_name: string | null;
+  uin: string | null;
+  description: string | null;
+  status: string;
+  entry_age_min: number | null;
+  entry_age_max: number | null;
+  sum_assured: AmountRange | null;
+  premium_frequencies: Array<{ value: PremiumFrequency; label: string }> | null;
+  policy_terms: TermRange | null;
+  premium_payment_terms: TermRange | null;
+  pricing_available: boolean;
+  pricing_method: string | null;
+  pricing_basis_note: string | null;
+  rating_factors: Array<"age" | "gender" | "smoker" | "policy_term">;
+  catalogue: CatalogueInfo;
+}
+
+export interface RatingInputs {
+  age?: number;
+  gender?: "male" | "female" | "other";
+  smoker?: boolean;
+}
+
+export interface QuoteRequest {
+  sum_assured?: number;
+  premium_frequency?: PremiumFrequency;
+  policy_term?: number;
+  premium_payment_term?: number;
+  rating: RatingInputs;
+}
+
+export interface ProductSelection extends QuoteRequest {
+  product_id: string;
+}
+
+export interface IndicativeQuote {
+  quote_type: "indicative";
+  official_quote: false;
+  status: "indicative" | "not_available";
+  amount: number | null;
+  amount_before_tax: number | null;
+  tax_amount: number | null;
+  currency: string | null;
+  premium_frequency: string | null;
+  method: string | null;
+  basis_note: string | null;
+  reasons: string[];
+  missing_inputs: string[];
+  inputs_used: Record<string, unknown>;
+  disclaimer: string;
 }
 
 export interface DocumentSummary {
@@ -503,4 +602,194 @@ export interface IdentityReviewInput {
   decision: "confirmed" | "rejected" | "follow_up_required";
   rationale?: string;
   resolved_fields: string[];
+}
+
+export interface AssessmentCitation {
+  document_id: string;
+  document_version: number;
+  page: number;
+  excerpt: string;
+}
+
+export interface AssessmentEvidence {
+  label: string;
+  value: unknown;
+  unit?: string | null;
+  field_path?: string;
+  document_id?: string;
+  document_type?: string | null;
+  filename?: string | null;
+  source?: string;
+  explanation?: string;
+  citations: AssessmentCitation[];
+}
+
+export interface AssessmentRuleResult {
+  rule_id: string;
+  title: string;
+  category: string;
+  outcome: "refer" | "advisory";
+  points: number;
+  rationale: string;
+  status: "triggered" | "not_triggered" | "not_evaluable";
+  reason: string;
+  evidence: AssessmentEvidence[];
+}
+
+export interface ProposedTerms {
+  status: "captured" | "not_available";
+  reason?: string;
+  source: string;
+  product_id?: string | null;
+  product_name?: string | null;
+  insurer?: string | null;
+  insurance_type?: string | null;
+  plan_name?: string | null;
+  currency?: string | null;
+  sum_assured?: number | null;
+  premium?: number | null;
+  premium_status?: "indicative" | "not_available";
+  premium_basis?: string;
+  premium_frequency?: string | null;
+  policy_term?: number | null;
+  premium_payment_term?: number | null;
+  rating_inputs?: { age?: number | null; gender?: string | null; smoker?: boolean | null };
+}
+
+export interface AssessmentResult {
+  engine_version: string;
+  inputs: {
+    documents: Array<{ id: string; type: string; status: string; filename: string }>;
+    processed_documents: number;
+    ai_analyses: number;
+    rule_set: { id: string; version: string; is_demo: boolean; source: string } | null;
+  };
+  proposed_terms: ProposedTerms;
+  applicant: AssessmentEvidence[];
+  medical_findings: Array<{ kind: string; text: string; filename: string | null; citations: AssessmentCitation[] }>;
+  financial: {
+    evidence: AssessmentEvidence[];
+    exposure: {
+      currency: string | null;
+      proposed_sum_assured: number | null;
+      existing_cover: { status: string; amount: number | null; reason: string | null; citations: AssessmentCitation[] };
+      total_exposure: number | null;
+      annual_income: { status: string; amount: number | null; citations: AssessmentCitation[] };
+      cover_to_income_multiple: number | null;
+      multiple_includes_existing_cover: boolean;
+    };
+  };
+  rule_results: AssessmentRuleResult[];
+  hilt: { pending: number; open_flags: number };
+  issues: Array<{ category: string; severity: string; message: string }>;
+  recommendation: {
+    status: "available" | "not_available";
+    code: string | null;
+    label: string;
+    reason: string;
+    disclaimer: string;
+    automatic_decision: false;
+    pending_hilt_exceptions: number;
+    triggered_rule_ids?: string[];
+    rule_set?: { id: string; version: string; is_demo: boolean };
+  };
+  risk_score: {
+    status: "assessed" | "not_assessed";
+    score: number | null;
+    reason?: string;
+    scale_min?: number;
+    scale_max?: number;
+    band?: string;
+    interpretation?: string;
+    method?: string;
+    evaluated_rules?: number;
+    total_rules?: number;
+    model?: { id: string; version: string; approved?: boolean; is_demo?: boolean };
+  };
+  recommended_terms: { status: string; reason: string };
+  revised_premium: { status: string; amount: number | null; reason: string };
+  disclaimer: string;
+}
+
+export interface CaseAssessmentView {
+  case_id: string;
+  rules_configured: boolean;
+  stale: boolean;
+  latest: {
+    version: number;
+    created_at: string;
+    trigger: string;
+    created_by: string;
+    engine_version: string;
+    result: AssessmentResult;
+  } | null;
+  versions: Array<{ version: number; created_at: string; trigger: string; created_by: string; recommendation: string | null; risk_score: number | null }>;
+  final_terms: {
+    status: "recorded" | "not_recorded";
+    reason?: string;
+    decision?: string;
+    approved_sum_assured?: number | null;
+    applicable_premium?: number | null;
+    additional_terms?: string | null;
+    underwriter_subject?: string;
+    decided_at?: string;
+  };
+}
+
+export type ProposalSource =
+  | "proposal_form"
+  | "product_selection"
+  | "product_catalogue"
+  | "document_evidence"
+  | "ai_assessment"
+  | "underwriter_decision"
+  | "case_record";
+
+export interface ProposalEvidence {
+  label: string;
+  value: unknown;
+  unit?: string | null;
+  currency?: string | null;
+  source: ProposalSource;
+  verified: boolean;
+  status?: string;
+  document_id?: string;
+  document_type?: string;
+  filename?: string | null;
+  citations: AssessmentCitation[];
+}
+
+export interface ProposalItem {
+  key: string;
+  label: string;
+  value: unknown;
+  kind: "text" | "money" | "date" | "years" | "number" | "breakdown";
+  currency: string | null;
+  source: ProposalSource | null;
+  highlight: boolean;
+  note: string | null;
+  citations: AssessmentCitation[];
+  document_id: string | null;
+  verified: boolean | null;
+  evidence: ProposalEvidence[];
+}
+
+export interface ProposalView {
+  case_id: string;
+  proposal_number: string;
+  has_product_selection: boolean;
+  catalogue: { is_demo: boolean; catalogue_id: string | null; catalogue_version: string | null; note: string | null };
+  proposal_document: DocumentSummary | null;
+  proposal_document_count: number;
+  sections: Array<{ id: string; title: string; items: ProposalItem[] }>;
+}
+
+export interface ProposalDocumentResponse {
+  case_id: string;
+  proposal_number: string;
+  applicant_display_name: string;
+  available: boolean;
+  message: string | null;
+  original: DocumentSummary | null;
+  documents: DocumentSummary[];
 }

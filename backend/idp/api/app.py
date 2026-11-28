@@ -19,6 +19,7 @@ from idp.config import Settings, get_settings
 from idp.database import Database, seed_demo_case, seed_demo_variance_case
 from idp.document_types import DocumentTypeRegistry
 from idp.errors import AppError
+from idp.products.catalogue import ProductCatalogue
 from idp.storage import LocalObjectStore
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     database = Database(resolved_settings)
     object_store = LocalObjectStore(resolved_settings.object_root)
     registry = DocumentTypeRegistry.load_catalog(resolved_settings.document_type_path)
+    product_catalogue = ProductCatalogue.load(resolved_settings.product_catalogue_path)
     authenticator = Authenticator(resolved_settings)
 
     @asynccontextmanager
@@ -59,6 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.database = database
     application.state.object_store = object_store
     application.state.registry = registry
+    application.state.product_catalogue = product_catalogue
     application.state.authenticator = authenticator
 
     if resolved_settings.cors_origin_list:

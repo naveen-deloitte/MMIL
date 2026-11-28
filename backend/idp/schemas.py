@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import (
+    AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
@@ -12,6 +13,8 @@ from pydantic import (
     model_serializer,
     model_validator,
 )
+
+from idp.products.schemas import ProductSelectionIn
 
 
 class ApiModel(BaseModel):
@@ -36,6 +39,10 @@ class CaseSummary(ApiModel):
     workflow_stage: str
     sla_label: str
     is_demo: bool = False
+    product_id: str | None = None
+    policy_details: dict[str, Any] | None = Field(
+        default=None, validation_alias=AliasChoices("policy_details_json", "policy_details")
+    )
     final_decision: str | None = None
     decision_date: datetime | None = None
     underwriter_subject: str | None = None
@@ -224,7 +231,9 @@ class CaseCreateIn(BaseModel):
     )
     applicant_display_name: str = Field(min_length=1, max_length=200)
     proposal_number: str = Field(min_length=1, max_length=100)
-    product_name: str = Field(min_length=1, max_length=200)
+    # Legacy free-text product. When ``product`` is supplied the name comes from the catalogue.
+    product_name: str | None = Field(default=None, min_length=1, max_length=200)
+    product: ProductSelectionIn | None = None
     workflow_stage: str = Field(default="human_review", min_length=1, max_length=50)
     sla_label: str = Field(default="Not set", min_length=1, max_length=100)
 
@@ -237,11 +246,19 @@ class CaseCreateIn(BaseModel):
         "sla_label",
     )
     @classmethod
-    def strip_case_values(cls, value: str) -> str:
+    def strip_case_values(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip()
         if not normalized:
             raise ValueError("This value cannot be blank.")
         return normalized
+
+    @model_validator(mode="after")
+    def require_product(self) -> CaseCreateIn:
+        if self.product is None and self.product_name is None:
+            raise ValueError("Select a product.")
+        return self
 
 
 class CaseListItem(BaseModel):

@@ -1,0 +1,97 @@
+{
+  "document_type": "financial_document",
+  "schema_version": "1.0.0",
+  "display_name": "Financial document",
+  "classification": {
+    "hints": ["income tax return", "salary slip", "form 16", "bank statement", "existing insurance"],
+    "minimum_confidence": 0.8,
+    "separation_margin": 0.1,
+    "on_uncertain": "require_type_selection"
+  },
+  "constraints": {
+    "media_types": ["application/pdf", "image/jpeg", "image/png", "image/tiff"],
+    "max_pages": 40
+  },
+  "extraction": {
+    "strategy": "deterministic_only",
+    "prompt_version": "financial-document-local-1.0.0",
+    "capture_additional_facts": false
+  },
+  "additional_facts": {
+    "enabled": false,
+    "allowed_categories": [],
+    "citations_required": true,
+    "max_items": 0
+  },
+  "fields": [
+    {
+      "path": "financial.document_kind",
+      "label": "Financial document kind",
+      "description": "Kind of financial evidence as titled in the document.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Financial evidence",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [
+        {"regex": "(?i)(?P<value>Income Tax Return|ITR-V|Form 16|Salary Slip|Pay Slip|Bank Statement|Existing Insurance Declaration)"}
+      ]
+    },
+    {
+      "path": "financial.assessment_year",
+      "label": "Assessment / financial year",
+      "description": "Assessment or financial year the income relates to, as stated.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Financial evidence",
+      "patterns": [
+        {"regex": "(?im)^\\s*(?:Assessment|Financial)\\s+Year\\s*[:\\-]\\s*(?P<value>\\d{4}\\s*-\\s*\\d{2,4})\\s*$"}
+      ]
+    },
+    {
+      "path": "financial.annual_income",
+      "label": "Annual income",
+      "description": "Gross or total annual income stated in the document. Never inferred from monthly amounts.",
+      "data_type": "decimal",
+      "unit": "INR",
+      "ui_section": "bank_details",
+      "ui_group": "Income",
+      "patterns": [
+        {"regex": "(?im)^\\s*(?:Gross\\s+|Total\\s+)?(?:Annual\\s+Income|Gross\\s+Total\\s+Income|Total\\s+Income)\\s*[:\\-]\\s*(?:INR|Rs\\.?|\u20b9)?\\s*(?P<value>\\d[\\d,]*(?:\\.\\d+)?)\\s*$"}
+      ]
+    },
+    {
+      "path": "financial.employer",
+      "label": "Employer",
+      "description": "Employer name as stated.",
+      "data_type": "text",
+      "ui_section": "bank_details",
+      "ui_group": "Income",
+      "patterns": [
+        {"regex": "(?im)^\\s*(?:Employer|Employer Name|Company)\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{2,120}?)\\s*$"}
+      ]
+    },
+    {
+      "path": "financial.existing_life_cover",
+      "label": "Existing life insurance cover",
+      "description": "Total sum assured of existing in-force life insurance, as declared in the document.",
+      "data_type": "decimal",
+      "unit": "INR",
+      "ui_section": "bank_details",
+      "ui_group": "Existing insurance",
+      "patterns": [
+        {"regex": "(?im)^\\s*(?:Total\\s+)?Existing\\s+(?:Life\\s+)?(?:Insurance\\s+)?(?:Cover|Sum\\s+Assured)\\s*[:\\-]\\s*(?:INR|Rs\\.?|\u20b9)?\\s*(?P<value>\\d[\\d,]*(?:\\.\\d+)?)\\s*$"}
+      ]
+    },
+    {
+      "path": "financial.existing_policy_count",
+      "label": "Existing in-force policies",
+      "description": "Number of existing in-force life policies, as declared.",
+      "data_type": "integer",
+      "ui_section": "bank_details",
+      "ui_group": "Existing insurance",
+      "patterns": [
+        {"regex": "(?im)^\\s*(?:Number\\s+of\\s+)?Existing\\s+(?:In-?force\\s+)?Policies\\s*[:\\-]\\s*(?P<value>\\d{1,3})\\s*$"}
+      ]
+    }
+  ]
+}

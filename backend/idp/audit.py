@@ -33,6 +33,9 @@ _ALLOWED_METADATA_KEYS = {
     "match_status",
     "mismatch_count",
     "consent_given",
+    # Case assessment. Codes and counts only.
+    "assessment_version",
+    "recommendation",
 }
 
 

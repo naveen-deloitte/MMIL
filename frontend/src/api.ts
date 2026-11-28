@@ -6,10 +6,18 @@ import type {
   CaseSummary,
   DocumentDeletion,
   DocumentSummary,
+  CaseAssessmentView,
   ExtractionHistory,
   IdentityReviewInput,
   IdentitySummary,
   IdentityVerifyInput,
+  IndicativeQuote,
+  ProductDetail,
+  ProductList,
+  ProposalDocumentResponse,
+  ProposalView,
+  QuoteRequest,
+  RatingInputs,
   ReviewPayload,
   UnderwritingVarianceDecisionInput,
   UnderwritingVarianceWorkspace,
@@ -126,7 +134,9 @@ export async function uploadDocument(
     | "medical_report"
     | "kyc_individual"
     | "aadhaar_card"
-    | "pan_card" = "medical_report",
+    | "pan_card"
+    | "financial_document"
+    | "proposal_form" = "medical_report",
 ): Promise<DocumentSummary> {
   const form = new FormData();
   form.append("file", file);
@@ -209,4 +219,50 @@ export function submitIdentityReview(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export function loadProducts(query = ""): Promise<ProductList> {
+  const params = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+  return request<ProductList>(`/api/v1/products${params}`);
+}
+
+export function loadProduct(productId: string): Promise<ProductDetail> {
+  return request<ProductDetail>(`/api/v1/products/${encodeURIComponent(productId)}`);
+}
+
+export function quoteProduct(productId: string, payload: QuoteRequest): Promise<IndicativeQuote> {
+  return request<IndicativeQuote>(`/api/v1/products/${encodeURIComponent(productId)}/quote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function loadCaseAssessment(caseId: string): Promise<CaseAssessmentView> {
+  return request<CaseAssessmentView>(`/api/v1/cases/${encodeURIComponent(caseId)}/assessment`);
+}
+
+export function refreshCaseAssessment(caseId: string): Promise<CaseAssessmentView> {
+  return request<CaseAssessmentView>(
+    `/api/v1/cases/${encodeURIComponent(caseId)}/assessment/refresh`,
+    { method: "POST" },
+  );
+}
+
+export function requoteCaseProduct(caseId: string, rating: RatingInputs): Promise<CaseSummary> {
+  return request<CaseSummary>(`/api/v1/cases/${encodeURIComponent(caseId)}/product/requote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rating),
+  });
+}
+
+export function loadProposal(caseId: string): Promise<ProposalView> {
+  return request<ProposalView>(`/api/v1/cases/${encodeURIComponent(caseId)}/proposal`);
+}
+
+export function loadProposalDocument(caseId: string): Promise<ProposalDocumentResponse> {
+  return request<ProposalDocumentResponse>(
+    `/api/v1/cases/${encodeURIComponent(caseId)}/proposal/document`,
+  );
 }

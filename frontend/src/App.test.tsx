@@ -209,6 +209,13 @@ describe("focused workbench", () => {
       },
     };
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      // No product catalogue configured: the form falls back to a free-text product.
+      if (String(input) === "/api/v1/products") {
+        return new Response(JSON.stringify({ items: [], catalogue_configured: false, demo_catalogue: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       if (String(input) === "/api/v1/cases" && init?.method === "POST") {
         return new Response(JSON.stringify(newCase), {
           status: 201,
@@ -232,7 +239,7 @@ describe("focused workbench", () => {
     await user.type(screen.getByLabelText("Case ID"), "UW-2027-001234");
     await user.type(screen.getByLabelText("Applicant name"), "Synthetic Applicant");
     await user.type(screen.getByLabelText("Proposal number"), "PROP-001234");
-    await user.type(screen.getByLabelText("Product"), "Life Protect Plus");
+    await user.type(await screen.findByLabelText("Product"), "Life Protect Plus");
     await user.click(screen.getByRole("button", { name: "Create case" }));
 
     expect(await screen.findByRole("heading", { name: /Synthetic Applicant/ })).toBeInTheDocument();
@@ -241,6 +248,107 @@ describe("focused workbench", () => {
       "/api/v1/cases",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("creates a case from a catalogue product with its policy selections", async () => {
+    window.history.replaceState({}, "", "/");
+    const catalogue = { catalogue_id: "cat", catalogue_version: "1.0.0", source: "test", is_demo: true, effective_date: null };
+    const product = {
+      product_id: "term-1",
+      product_name: "Catalogue Term",
+      insurer: "Insurer One",
+      insurance_type: "Term life",
+      plan_name: null,
+      uin: null,
+      description: null,
+      status: "active",
+      entry_age_min: 18,
+      entry_age_max: 60,
+      sum_assured: { currency: "INR", options: [1000000, 2000000] },
+      premium_frequencies: [{ value: "annual", label: "Annual" }],
+      policy_terms: { options: [20] },
+      premium_payment_terms: null,
+      pricing_available: true,
+      pricing_method: "rate_per_thousand_sum_assured",
+      pricing_basis_note: "test",
+      rating_factors: ["age"],
+      catalogue,
+    };
+    const newCase = { ...workspace.case, external_case_id: "UW-CAT-1", applicant_display_name: "Catalogue Applicant" };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const ok = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+      if (url === "/api/v1/products") {
+        return ok({
+          items: [
+            { product_id: "term-1", product_name: "Catalogue Term", insurer: "Insurer One", insurance_type: "Term life", catalogue },
+            { product_id: "health-1", product_name: "Catalogue Health", insurer: "Insurer Two", insurance_type: "Health", catalogue },
+          ],
+          catalogue_configured: true,
+          demo_catalogue: true,
+        });
+      }
+      if (url === "/api/v1/products/term-1") return ok(product);
+      if (url === "/api/v1/products/term-1/quote") {
+        const body = JSON.parse(String(init?.body));
+        return ok({
+          quote_type: "indicative",
+          official_quote: false,
+          status: body.rating.age && body.sum_assured ? "indicative" : "not_available",
+          amount: body.rating.age && body.sum_assured ? 2360 : null,
+          amount_before_tax: null,
+          tax_amount: null,
+          currency: "INR",
+          premium_frequency: "annual",
+          method: "rate_per_thousand_sum_assured",
+          basis_note: null,
+          reasons: [],
+          missing_inputs: body.rating.age ? [] : ["age"],
+          inputs_used: {},
+          disclaimer: "Not an official insurer quote.",
+        });
+      }
+      if (url === "/api/v1/cases" && init?.method === "POST") return ok(newCase, 201);
+      if (url === "/api/v1/cases") return ok([]);
+      return workspaceResponse(input, { ...workspace, case: newCase });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Create new case" }));
+    await user.type(screen.getByLabelText("Case ID"), "UW-CAT-1");
+    await user.type(screen.getByLabelText("Applicant name"), "Catalogue Applicant");
+    await user.type(screen.getByLabelText("Proposal number"), "PROP-CAT-1");
+    expect(screen.queryByLabelText("Product")).not.toBeInTheDocument();
+    await user.type(await screen.findByRole("combobox", { name: "Insurance product" }), "insurer one");
+    expect(screen.queryByRole("option", { name: /Catalogue Health/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: /Catalogue Term/ }));
+
+    const card = await screen.findByRole("region", { name: "Product details" });
+    expect(within(card).getByText("Insurer One")).toBeInTheDocument();
+    expect(within(card).getByText("20 years")).toBeInTheDocument();
+    expect(within(card).getAllByText("Not Available").length).toBeGreaterThan(0);
+    expect(within(card).getByText(/not an official insurer quote/i)).toBeInTheDocument();
+    await user.selectOptions(within(card).getByLabelText("Sum assured"), "2000000");
+    await user.type(within(card).getByLabelText("Applicant age"), "30");
+    expect(await within(card).findByText("₹2,360.00")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Create case" }));
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url, init]) => String(url) === "/api/v1/cases" && init?.method === "POST")).toBe(true),
+    );
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url) === "/api/v1/cases" && init?.method === "POST");
+    const body = JSON.parse(String(post?.[1]?.body));
+    expect(body.product_name).toBeUndefined();
+    expect(body.product).toEqual({
+      product_id: "term-1",
+      sum_assured: 2000000,
+      premium_frequency: "annual",
+      policy_term: 20,
+      rating: { age: 30 },
+    });
   });
 
   it("filters and clears the underwriting queue without changing case data", async () => {
@@ -891,8 +999,6 @@ describe("focused workbench", () => {
 
     await user.click(screen.getByRole("button", { name: /^Underwriting$/ }));
     expect(screen.getByRole("button", { name: "Financial review" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /^Simulator$/ }));
-    expect(screen.getByText(/Approved product rates, coverage inputs, and underwriting rules are not connected/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /^Decision$/ }));
     expect(screen.getByText("No decision recorded")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Final underwriting decision" })).toBeInTheDocument();

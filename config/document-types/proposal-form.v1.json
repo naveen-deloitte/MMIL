@@ -1,0 +1,177 @@
+{
+  "document_type": "proposal_form",
+  "schema_version": "1.0.0",
+  "display_name": "Proposal form",
+  "classification": {
+    "hints": ["proposal form", "application for life insurance", "declaration by the proposer"],
+    "minimum_confidence": 0.8,
+    "separation_margin": 0.1,
+    "on_uncertain": "require_type_selection"
+  },
+  "constraints": {
+    "media_types": ["application/pdf", "image/jpeg", "image/png", "image/tiff"],
+    "max_pages": 60
+  },
+  "extraction": {
+    "strategy": "deterministic_only",
+    "prompt_version": "proposal-form-local-1.0.0",
+    "capture_additional_facts": false
+  },
+  "additional_facts": {
+    "enabled": false,
+    "allowed_categories": [],
+    "citations_required": true,
+    "max_items": 0
+  },
+  "fields": [
+    {
+      "path": "proposal.proposal_number",
+      "label": "Proposal number (as stated)",
+      "description": "Proposal number printed on the submitted form.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Basic proposal information",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*Proposal\\s+(?:Number|No\\.?)\\s*[:\\-]\\s*(?P<value>[A-Za-z0-9][A-Za-z0-9/._-]{1,60})\\s*$"}]
+    },
+    {
+      "path": "proposal.proposal_date",
+      "label": "Proposal date",
+      "description": "Date the proposal was signed or submitted, as stated on the form.",
+      "data_type": "date",
+      "ui_section": "supporting_documents",
+      "ui_group": "Basic proposal information",
+      "patterns": [{"regex": "(?im)^\\s*(?:Proposal|Application)\\s+Date\\s*[:\\-]\\s*(?P<value>\\d{1,2}[/-]\\d{1,2}[/-]\\d{4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+[A-Za-z]{3,9}\\s+\\d{4})\\s*$"}]
+    },
+    {
+      "path": "proposal.channel",
+      "label": "Application channel",
+      "description": "Sales or distribution channel stated on the form.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Basic proposal information",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*(?:Application|Sales|Distribution)\\s+Channel\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{2,80}?)\\s*$"}]
+    },
+    {
+      "path": "proposal.payment_mode",
+      "label": "Payment mode",
+      "description": "How premiums will be paid, for example NACH, card or cheque, as stated.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Coverage and premium",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*(?:Premium\\s+)?Payment\\s+(?:Mode|Method)\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{2,80}?)\\s*$"}]
+    },
+    {
+      "path": "proposal.sum_assured",
+      "label": "Sum assured (as stated)",
+      "description": "Sum assured written on the proposal form. Shown beside, never instead of, the selected value.",
+      "data_type": "decimal",
+      "unit": "INR",
+      "ui_section": "supporting_documents",
+      "ui_group": "Coverage and premium",
+      "patterns": [{"regex": "(?im)^\\s*(?:Proposed\\s+)?Sum\\s+Assured\\s*[:\\-]\\s*(?:INR|Rs\\.?|\u20b9)?\\s*(?P<value>\\d[\\d,]*(?:\\.\\d+)?)\\s*$"}]
+    },
+    {
+      "path": "proposal.premium",
+      "label": "Premium (as stated)",
+      "description": "Premium written on the proposal form. Shown beside, never instead of, the selected value.",
+      "data_type": "decimal",
+      "unit": "INR",
+      "ui_section": "supporting_documents",
+      "ui_group": "Coverage and premium",
+      "patterns": [{"regex": "(?im)^\\s*(?:Proposed\\s+|Modal\\s+|Annual\\s+)?Premium(?:\\s+Amount)?\\s*[:\\-]\\s*(?:INR|Rs\\.?|\u20b9)?\\s*(?P<value>\\d[\\d,]*(?:\\.\\d+)?)\\s*$"}]
+    },
+    {
+      "path": "benefits.riders",
+      "label": "Riders and add-ons selected",
+      "description": "Riders the proposer selected, as written on the form.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Policy benefits",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*(?:Riders?|Add-?ons?)(?:\\s+Selected)?\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{2,200}?)\\s*$"}]
+    },
+    {
+      "path": "benefits.rider_sum_assured",
+      "label": "Rider sum assured",
+      "description": "Rider sum assured written on the form.",
+      "data_type": "decimal",
+      "unit": "INR",
+      "ui_section": "supporting_documents",
+      "ui_group": "Policy benefits",
+      "patterns": [{"regex": "(?im)^\\s*Rider\\s+Sum\\s+Assured\\s*[:\\-]\\s*(?:INR|Rs\\.?|\u20b9)?\\s*(?P<value>\\d[\\d,]*(?:\\.\\d+)?)\\s*$"}]
+    },
+    {
+      "path": "benefits.nominee",
+      "label": "Nominee",
+      "description": "Nominee name and relationship as written on the form.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Policy benefits",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*Nominee(?:\\s+Name)?\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{2,160}?)\\s*$"}]
+    },
+    {
+      "path": "declarations.occupation",
+      "label": "Occupation (declared)",
+      "description": "Occupation declared by the proposer.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Applicant declarations",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*Occupation\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{2,120}?)\\s*$"}]
+    },
+    {
+      "path": "declarations.annual_income",
+      "label": "Annual income (declared)",
+      "description": "Annual income declared by the proposer.",
+      "data_type": "decimal",
+      "unit": "INR",
+      "ui_section": "supporting_documents",
+      "ui_group": "Applicant declarations",
+      "patterns": [{"regex": "(?im)^\\s*(?:Gross\\s+)?Annual\\s+Income\\s*[:\\-]\\s*(?:INR|Rs\\.?|\u20b9)?\\s*(?P<value>\\d[\\d,]*(?:\\.\\d+)?)\\s*$"}]
+    },
+    {
+      "path": "declarations.tobacco",
+      "label": "Smoking / tobacco status (declared)",
+      "description": "Smoking or tobacco use declared by the proposer.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Applicant declarations",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*(?:Smoking|Tobacco)(?:\\s*(?:/|or)\\s*(?:Smoking|Tobacco))?(?:\\s+(?:Status|Use|Habits?))?\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{1,120}?)\\s*$"}]
+    },
+    {
+      "path": "declarations.existing_cover",
+      "label": "Existing insurance cover (declared)",
+      "description": "Total existing life insurance cover declared by the proposer.",
+      "data_type": "decimal",
+      "unit": "INR",
+      "ui_section": "supporting_documents",
+      "ui_group": "Applicant declarations",
+      "patterns": [{"regex": "(?im)^\\s*(?:Total\\s+)?Existing\\s+(?:Life\\s+)?(?:Insurance\\s+)?(?:Cover(?:age)?|Sum\\s+Assured)\\s*[:\\-]\\s*(?:INR|Rs\\.?|\u20b9)?\\s*(?P<value>\\d[\\d,]*(?:\\.\\d+)?)\\s*$"}]
+    },
+    {
+      "path": "declarations.medical_history",
+      "label": "Medical history (declared)",
+      "description": "Medical conditions or history declared by the proposer.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Applicant declarations",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*(?:Declared\\s+)?Medical\\s+History\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{1,300}?)\\s*$"}]
+    },
+    {
+      "path": "declarations.previous_insurance",
+      "label": "Previous insurance details (declared)",
+      "description": "Previous or existing policies declared by the proposer.",
+      "data_type": "text",
+      "ui_section": "supporting_documents",
+      "ui_group": "Applicant declarations",
+      "normalizers": ["trim", "collapse_whitespace"],
+      "patterns": [{"regex": "(?im)^\\s*(?:Previous|Existing)\\s+(?:Insurance|Policies|Policy)(?:\\s+Details)?\\s*[:\\-]\\s*(?P<value>[^\\r\\n]{1,300}?)\\s*$"}]
+    }
+  ]
+}

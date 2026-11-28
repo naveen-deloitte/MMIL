@@ -77,6 +77,10 @@ class Database:
                     connection.execute(
                         text("ALTER TABLE cases ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT FALSE")
                     )
+                if "product_id" not in case_columns:
+                    connection.execute(text("ALTER TABLE cases ADD COLUMN product_id VARCHAR(100)"))
+                if "policy_details_json" not in case_columns:
+                    connection.execute(text("ALTER TABLE cases ADD COLUMN policy_details_json JSON"))
 
     @contextmanager
     def session(self) -> Iterator[Session]:

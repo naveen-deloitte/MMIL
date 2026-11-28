@@ -885,13 +885,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .queue-data-limitation { margin: 0 0 10px; }
 .queue-priority-note { margin: 8px 0 0; }
 .queue-table-scroll { width: 100%; overflow-x: auto; border: 1px solid var(--gray-3); border-radius: 7px; background: var(--white); }
-.underwriting-queue-table { width: 100%; min-width: 1120px; border-collapse: collapse; text-align: left; }
-.underwriting-queue-table th { padding: 12px 12px; border-bottom: 1px solid var(--gray-3); color: var(--gray-7); background: var(--gray-1); font-size: 11px; font-weight: 800; white-space: nowrap; }
-.underwriting-queue-table td { max-width: 180px; padding: 13px 12px; border-bottom: 1px solid var(--gray-2); color: var(--gray-8); font-size: 12px; vertical-align: middle; overflow-wrap: anywhere; }
+.underwriting-queue-table { width: 100%; table-layout: fixed; border-collapse: collapse; text-align: left; }
+.underwriting-queue-table th:nth-child(1) { width: 11%; }
+.underwriting-queue-table th:nth-child(2) { width: 14%; }
+.underwriting-queue-table th:nth-child(3) { width: 16%; }
+.underwriting-queue-table th:nth-child(4) { width: 12%; }
+.underwriting-queue-table th:nth-child(5) { width: 13%; }
+.underwriting-queue-table th:nth-child(6) { width: 11%; }
+.underwriting-queue-table th:nth-child(7) { width: 290px; }
+.underwriting-queue-table th { padding: 12px 8px; border-bottom: 1px solid var(--gray-3); color: var(--gray-7); background: var(--gray-1); font-size: 11px; font-weight: 800; }
+.underwriting-queue-table td { padding: 13px 8px; border-bottom: 1px solid var(--gray-2); color: var(--gray-8); font-size: 12px; vertical-align: middle; overflow-wrap: anywhere; }
 .underwriting-queue-table tr:last-child td { border-bottom: 0; }
 .underwriting-queue-table tbody tr:hover { background: #f9fbfd; }
 .underwriting-queue-table tbody tr.demo-queue-row { background: #f7faff; }
-.underwriting-queue-table td:first-child { min-width: 140px; }
+
 .applicant-name { color: var(--gray-10); font-size: 13px; }
 .queue-demo-badge { margin: 4px 0 0; padding: 3px 6px; display: table; border: 1px solid #d5e5f7; border-radius: 3px; color: var(--info); background: #f5f9fe; font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .case-id-cell { color: var(--gray-8); font-weight: 700; }
@@ -902,8 +909,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .stage-indicator.attention > span { background: var(--warning); }
 .stage-indicator.waiting > span { background: var(--info); }
 .stage-indicator.complete > span { background: var(--success); }
-.open-case-button { padding: 7px 10px; border: 1px solid var(--info); border-radius: 5px; color: var(--info); background: var(--white); font-size: 12px; font-weight: 700; white-space: nowrap; }
-.open-case-button:hover { color: var(--white); background: var(--info); }
+.open-case-button { min-height: 32px; padding: 5px 12px; border: 1px solid var(--info); border-radius: 6px; color: var(--white); background: var(--info); font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.open-case-button:hover { border-color: var(--brand-dark); background: var(--brand-dark); }
 .queue-empty-state { min-height: 210px; padding: 28px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--gray-4); border-radius: 7px; background: var(--white); text-align: center; }
 .queue-empty-state h3 { margin: 8px 0 3px; color: var(--gray-9); font-size: 14px; }
 .queue-empty-state p { margin: 0 0 12px; color: var(--gray-7); font-size: 12px; }
@@ -1201,3 +1208,149 @@ select:not([multiple]):not([size]):disabled { cursor: not-allowed; opacity: 0.6;
 .identity-consent, .identity-pan-input { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; }
 .verification-list { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 6px; }
 .muted { color: #7a808a; }
+
+/* Identity review form. Reuses .decision-options and .form-field from the field review dialog. */
+.identity-review .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.identity-review-last { margin: 0 0 12px; color: var(--gray-7); font-size: 12px; }
+.identity-review-warning { margin: 0 0 12px; padding: 8px 11px; border-left: 3px solid #e6b75a; border-radius: var(--radius); color: #704300; background: #fff5dc; font-size: 12px; }
+.identity-decisions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.identity-decisions label span, .identity-mismatch-list label span { display: grid; gap: 2px; }
+.identity-decisions label strong, .identity-mismatch-list label strong { color: var(--gray-10); font-size: 12px; }
+.identity-decisions label small, .identity-mismatch-list label small { color: var(--gray-6); font-size: 11px; font-weight: 400; }
+.identity-mismatch-list { margin: 0 0 4px; padding: 0; display: grid; gap: 6px; border: 0; }
+.identity-mismatch-list legend { margin-bottom: 6px; color: var(--gray-9); font-size: 11px; font-weight: 700; }
+.identity-mismatch-list > p { margin: 0; font-size: 12px; }
+.identity-mismatch-list label { padding: 8px 10px; display: flex; align-items: flex-start; gap: 8px; border: 1px solid #f3c4bf; border-radius: var(--radius); background: #fdf3f2; cursor: pointer; }
+.identity-mismatch-list label.resolved { border-color: var(--gray-4); background: var(--gray-1); }
+.identity-mismatch-list input { margin-top: 3px; accent-color: var(--info); }
+.identity-review .form-field textarea { min-height: 72px; font-weight: 400; }
+.identity-review-blockers { margin: 10px 0 0; padding: 8px 12px 8px 28px; border-radius: var(--radius); color: var(--gray-8); background: var(--gray-1); font-size: 12px; }
+.identity-review-footer { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.identity-review-footer .data-note { margin: 0; flex: 1; }
+.identity-review-footer .primary-button { flex: none; }
+@media (max-width: 760px) {
+  .identity-decisions { grid-template-columns: 1fr; }
+  .identity-review-footer { flex-direction: column; align-items: stretch; }
+}
+
+/* Create case: insurance product selector and read-only product details. */
+.product-selector { margin-top: 14px; display: grid; gap: 8px; position: relative; }
+.product-search-field { margin-top: 0; font-size: 12px; }
+.product-combobox { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.product-combobox input { flex: 1; margin-top: 0 !important; min-height: 42px; font-size: 13px; border-color: var(--info) !important; }
+.product-change { flex: none; white-space: nowrap; }
+.product-options { position: absolute; z-index: 20; top: 68px; left: 0; right: 0; max-height: 280px; margin: 0; padding: 4px; overflow-y: auto; list-style: none; border: 1px solid var(--gray-4); border-radius: var(--radius); background: var(--white); box-shadow: 0 8px 24px rgb(0 0 0 / 12%); }
+.product-options li { padding: 8px 10px; display: grid; gap: 1px; border-radius: 5px; cursor: pointer; }
+.product-options li.highlighted, .product-options li[aria-selected="true"] { background: var(--info-light); }
+.product-options li strong { color: var(--gray-10); font-size: 13px; }
+.product-options li small { color: var(--gray-6); font-size: 11px; }
+.product-options .product-option-empty { color: var(--gray-6); cursor: default; }
+.product-demo-note { margin: 0; padding: 7px 10px; border-left: 3px solid #e6b75a; border-radius: var(--radius); color: #704300; background: #fff5dc; font-size: 11px; }
+.product-details-card { padding: 14px; border: 1px solid var(--gray-4); border-radius: var(--radius); background: var(--gray-1); }
+.product-details-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.product-details-heading h3 { margin: 0; color: var(--gray-10); font-size: 13px; }
+.product-details-heading .muted { font-size: 11px; }
+.product-description { margin: 6px 0 0; color: var(--gray-7); font-size: 12px; }
+.product-details-grid { margin: 12px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+.product-detail-row { min-width: 0; }
+.product-detail-row dt { color: var(--gray-6); font-size: 11px; font-weight: 700; }
+.product-detail-row dd { margin: 2px 0 0; color: var(--gray-10); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.product-detail-row dd.not-available, .product-details-card .not-available { color: var(--gray-6); font-weight: 400; font-style: italic; }
+.product-detail-row select, .product-detail-row input, .product-rating-inputs select, .product-rating-inputs input { min-height: 34px; padding: 5px 8px; border: 1px solid var(--gray-4); border-radius: 5px; color: var(--gray-9); background: var(--white); font-size: 12px; }
+.product-range-input { display: grid; gap: 3px; }
+.product-premium { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--gray-4); }
+.product-premium-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.product-premium-heading h4 { margin: 0; color: var(--gray-10); font-size: 12px; }
+.premium-indicative-badge { background: #fff4d6; color: #7a5400; }
+.product-rating-inputs { margin: 10px 0; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.product-rating-inputs > span { width: 100%; font-size: 11px; }
+.product-rating-inputs label { display: grid; gap: 3px; color: var(--gray-7); font-size: 11px; font-weight: 700; }
+.product-rating-inputs input { width: 90px; }
+.product-quote { margin-top: 8px; display: grid; gap: 3px; font-size: 12px; }
+.product-quote-amount { color: var(--gray-10); font-size: 20px; font-weight: 800; }
+.product-quote.not-available strong { color: var(--gray-7); }
+.product-quote-disclaimer { color: #7a5400; }
+@media (max-width: 760px) {
+  .product-details-grid { grid-template-columns: 1fr; }
+}
+
+/* Case assessment (Overview and Decision cockpit). */
+.assessment-demo-badge { margin-left: 6px; padding: 1px 6px; border-radius: 999px; color: #704300; background: #fff1cc; font-size: 9px; font-style: normal; font-weight: 800; }
+.assessment-findings h4 { margin: 14px 0 6px; color: var(--gray-10); font-size: 12px; }
+.assessment-recommendation { margin-top: 6px; padding: 10px 12px; display: grid; gap: 3px; border: 1px solid var(--gray-4); border-radius: var(--radius); background: var(--gray-1); font-size: 12px; }
+.assessment-recommendation strong { color: var(--gray-10); font-size: 15px; }
+.assessment-rule-list { margin: 0; padding: 0; display: grid; gap: 8px; list-style: none; }
+.assessment-rule-list > li { padding: 9px 11px; display: grid; gap: 3px; border: 1px solid var(--gray-4); border-left-width: 3px; border-radius: var(--radius); font-size: 12px; }
+.assessment-rule-list > li.rule-refer { border-left-color: #c0392b; }
+.assessment-rule-list > li.rule-advisory { border-left-color: #e6b75a; }
+.assessment-rule-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.assessment-evidence { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 3px; font-size: 12px; }
+.assessment-citations { margin-left: 6px; display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.assessment-citations .text-button { font-size: 11px; }
+.assessment-other-rules { margin-top: 10px; font-size: 12px; }
+.assessment-other-rules summary { cursor: pointer; color: var(--gray-8); font-weight: 700; }
+.assessment-other-rules ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+
+/* Case overview: applicant profile beside the expanded proposal details. */
+.overview-proposal-layout { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2.4fr); gap: 14px; align-items: start; }
+.proposal-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.proposal-legend { margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; list-style: none; color: var(--gray-6); font-size: 11px; }
+.proposal-legend li { display: inline-flex; align-items: center; gap: 4px; }
+.proposal-sections { display: grid; gap: 12px; }
+.proposal-section { padding: 12px 14px; border: 1px solid var(--gray-3); border-radius: var(--radius); background: var(--white); }
+.proposal-section h4 { margin: 0 0 10px; color: var(--gray-10); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.proposal-section-assessed { background: var(--gray-1); }
+.proposal-highlights { margin-bottom: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.proposal-highlight { padding: 12px; display: grid; gap: 4px; align-content: start; border: 1px solid #b9d7f0; border-radius: var(--radius); background: var(--info-light); }
+.proposal-highlight > span { color: var(--gray-7); font-size: 11px; font-weight: 700; }
+.proposal-highlight > strong { color: var(--gray-10); font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+.proposal-highlight > strong.not-available { color: var(--gray-6); font-size: 16px; font-weight: 600; font-style: italic; }
+.proposal-highlight > small { color: var(--gray-7); font-size: 11px; }
+.proposal-grid { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; }
+.proposal-row { min-width: 0; }
+.proposal-row dt { color: var(--gray-6); font-size: 11px; font-weight: 700; }
+.proposal-row dd { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; font-size: 13px; }
+.proposal-value { color: var(--gray-10); font-weight: 600; overflow-wrap: anywhere; }
+.proposal-row .not-available { color: var(--gray-6); font-style: italic; }
+.proposal-note { width: 100%; color: var(--gray-6); font-size: 11px; }
+.proposal-cite { font-size: 11px; }
+.proposal-source { display: inline-block; padding: 1px 6px; border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; color: #3b4048; background: #eef0f3; }
+.proposal-source.source-proposal_form { color: #7a5400; background: #fff4d6; }
+.proposal-source.source-product_selection, .proposal-source.source-product_catalogue { color: #1d4f91; background: #e6f0fb; }
+.proposal-source.source-document_evidence { color: #3b4048; background: #eef0f3; }
+.proposal-source.source-document_evidence.verified { color: #1e6b37; background: #e3f4e8; }
+.proposal-source.source-ai_assessment { color: #5b2a86; background: #f1e8fb; }
+.proposal-source.source-underwriter_decision { color: #1e6b37; background: #e3f4e8; }
+.proposal-evidence { width: 100%; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; list-style: none; font-size: 11px; color: var(--gray-8); }
+.proposal-evidence li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+@media (max-width: 1100px) {
+  .overview-proposal-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .proposal-highlights, .proposal-grid { grid-template-columns: 1fr; }
+}
+
+/* My Cases: Continue review + View Proposal side by side. */
+.queue-action-buttons { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+.view-proposal-button { min-height: 32px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--info); border-radius: 6px; color: var(--info); background: var(--white); font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.view-proposal-button:hover { background: var(--info-light); }
+.view-proposal-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* View Proposal fallback: case proposal details when no proposal document was uploaded. */
+.proposal-viewer-fallback { width: 100%; max-height: 100%; padding: 14px; display: grid; gap: 12px; align-content: start; overflow-y: auto; text-align: left; }
+.proposal-footnote { margin: 4px 0 0; color: var(--gray-6); font-size: 11px; }
+.proposal-section { padding: 14px 16px; }
+.proposal-section h4 { margin-bottom: 12px; color: var(--gray-7); font-size: 11px; }
+.proposal-grid { gap: 14px 24px; }
+.proposal-highlight > strong { font-size: 20px; }
+@media (max-width: 760px) { .proposal-viewer-fallback .proposal-highlights, .proposal-viewer-fallback .proposal-grid { grid-template-columns: 1fr; } }
+
+/* Financial document review. */
+.financial-view { display: grid; gap: 12px; }
+.financial-hero-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.financial-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.financial-summary-card { padding: 12px 14px; display: grid; gap: 4px; border: 1px solid var(--gray-3); border-radius: var(--radius); background: var(--white); }
+.financial-summary-card > span { color: var(--gray-6); font-size: 11px; font-weight: 700; }
+.financial-summary-card > strong { color: var(--gray-10); font-size: 18px; font-weight: 800; overflow-wrap: anywhere; }
+.financial-summary-card.missing > strong { color: var(--gray-5); font-size: 14px; font-weight: 500; }
+.financial-missing { margin: 0; color: var(--gray-7); font-size: 12px; }

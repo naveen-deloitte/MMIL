@@ -1,0 +1,120 @@
+{
+  "rule_set_id": "demo-underwriting-rules",
+  "version": "1.0.0",
+  "is_demo": true,
+  "source": "DEMO DATA. Illustrative rules for local development only. They are not the insurer's underwriting guidelines. Replace with the approved rule set.",
+  "rules": [
+    {
+      "rule_id": "bmi_above_35",
+      "title": "BMI above 35",
+      "category": "medical",
+      "source": {"type": "field", "field_path": "observations.bmi"},
+      "operator": "gt",
+      "value": 35,
+      "outcome": "refer",
+      "points": 25,
+      "rationale": "Demo rule: a BMI above 35 is referred to the underwriter."
+    },
+    {
+      "rule_id": "hba1c_6_5_or_more",
+      "title": "HbA1c 6.5% or higher",
+      "category": "medical",
+      "source": {"type": "field", "field_path": "labs.hba1c"},
+      "operator": "gte",
+      "value": 6.5,
+      "outcome": "refer",
+      "points": 25,
+      "rationale": "Demo rule: an HbA1c of 6.5% or higher is referred to the underwriter."
+    },
+    {
+      "rule_id": "systolic_bp_above_160",
+      "title": "Systolic blood pressure above 160 mmHg",
+      "category": "medical",
+      "source": {"type": "field", "field_path": "observations.blood_pressure", "component": "systolic"},
+      "operator": "gt",
+      "value": 160,
+      "outcome": "refer",
+      "points": 20,
+      "rationale": "Demo rule: a systolic reading above 160 mmHg is referred to the underwriter."
+    },
+    {
+      "rule_id": "tobacco_declared",
+      "title": "Tobacco use declared",
+      "category": "lifestyle",
+      "source": {"type": "field", "field_path": "lifestyle.tobacco"},
+      "operator": "matches",
+      "value": "^(?!\\s*(no|none|nil|never|non[- ]?smoker)\\b)",
+      "outcome": "advisory",
+      "points": 10,
+      "rationale": "Demo rule: declared tobacco use is highlighted for the underwriter."
+    },
+    {
+      "rule_id": "hiv_reactive",
+      "title": "HIV screening reactive",
+      "category": "medical",
+      "source": {"type": "field", "field_path": "screening.hiv"},
+      "operator": "matches",
+      "value": "(?i)^(?!.*\\bnon[- ]?reactive\\b)(?!.*\\bnegative\\b).*\\b(reactive|positive)\\b",
+      "outcome": "refer",
+      "points": 40,
+      "rationale": "Demo rule: a reactive screening result is referred to the underwriter."
+    },
+    {
+      "rule_id": "lab_values_flagged",
+      "title": "Laboratory values flagged by the report",
+      "category": "medical",
+      "source": {"type": "lab_flags", "flags": ["H", "L", "HIGH", "LOW", "ABNORMAL"]},
+      "operator": "count_gte",
+      "value": 3,
+      "outcome": "advisory",
+      "points": 10,
+      "rationale": "Demo rule: three or more report-flagged lab values are highlighted for review."
+    },
+    {
+      "rule_id": "sum_assured_above_2_crore",
+      "title": "Proposed sum assured above INR 2 crore",
+      "category": "financial",
+      "source": {"type": "proposal", "key": "sum_assured"},
+      "operator": "gt",
+      "value": 20000000,
+      "outcome": "refer",
+      "points": 10,
+      "rationale": "Demo rule: high sums assured need financial underwriting."
+    },
+    {
+      "rule_id": "cover_over_20x_income",
+      "title": "Total cover more than 20 times annual income",
+      "category": "financial",
+      "source": {"type": "cover_to_income"},
+      "operator": "gt",
+      "value": 20,
+      "outcome": "refer",
+      "points": 20,
+      "rationale": "Demo rule: proposed plus existing cover above 20x stated annual income is referred."
+    },
+    {
+      "rule_id": "identity_mismatch",
+      "title": "Identity documents do not match the KYC form",
+      "category": "identity",
+      "source": {"type": "identity_match"},
+      "operator": "eq",
+      "value": "mismatch",
+      "outcome": "refer",
+      "points": 15,
+      "rationale": "Demo rule: an identity mismatch must be resolved before a decision."
+    }
+  ],
+  "risk_scoring": {
+    "model_id": "demo-points-model",
+    "version": "1.0.0",
+    "approved": false,
+    "method": "Sum of points for triggered rules, capped at the scale maximum.",
+    "scale_min": 0,
+    "scale_max": 100,
+    "bands": [
+      {"max": 19, "label": "Low", "interpretation": "No significant adverse demo rule triggered."},
+      {"max": 49, "label": "Moderate", "interpretation": "Some adverse demo rules triggered; review the evidence."},
+      {"max": 100, "label": "High", "interpretation": "Several or severe demo rules triggered; detailed review needed."}
+    ]
+  }
+}

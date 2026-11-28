@@ -239,9 +239,16 @@ describe("identity verification view", () => {
     const handlers = renderView();
     await screen.findByText("XXXX XXXX 9012");
     const section = screen.getByRole("region", { name: "Identity review" });
-    await userEvent.click(within(section).getByRole("checkbox", { name: "Full name" }));
+    const button = within(section).getByRole("button", { name: "Record identity review" });
+    expect(button).toBeDisabled();
+    expect(within(section).getByText(/Mark every mismatch as resolved: Full name/)).toBeInTheDocument();
+    expect(within(section).getByText("Enter a rationale.")).toBeInTheDocument();
+    const checkbox = within(section).getByRole("checkbox", { name: /Full name/ });
+    expect(checkbox.closest("label")).toHaveTextContent("KYC: Amit Verma · Aadhaar: Rahul Sharma");
+    await userEvent.click(checkbox);
     await userEvent.type(within(section).getByLabelText("Identity review rationale"), "Checked originals");
-    await userEvent.click(within(section).getByRole("button", { name: "Record identity review" }));
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
     await waitFor(() => expect(handlers.onChanged).toHaveBeenCalled());
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(String(post?.[0])).toContain("/identity/review");
@@ -250,6 +257,19 @@ describe("identity verification view", () => {
       rationale: "Checked originals",
       resolved_fields: ["full_name"],
     });
+  });
+
+  it("requires a rationale for follow-up or reject decisions", async () => {
+    const clean = summary({ matches: [], issues: [] });
+    vi.stubGlobal("fetch", vi.fn(async () => json(clean)));
+    renderView();
+    const section = await screen.findByRole("region", { name: "Identity review" });
+    const button = within(section).getByRole("button", { name: "Record identity review" });
+    expect(within(section).getByText("No mismatches between the documents.")).toBeInTheDocument();
+    expect(button).toBeEnabled();
+    await userEvent.click(within(section).getByRole("radio", { name: /Follow-up required/ }));
+    expect(button).toBeDisabled();
+    expect(within(section).getByText("Enter a rationale.")).toBeInTheDocument();
   });
 
   it("sends consent with the verification request", async () => {

@@ -171,6 +171,20 @@ function addAiRationaleDraft(form: DecisionForm, draft: string): DecisionForm {
   return form;
 }
 
+/** Proposed sum assured and indicative premium saved with the case's product selection. */
+function proposedTerms(workspace: Workspace): { sumAssured: number | null; premium: number | null } {
+  const policy = (workspace.case.policy_details ?? null) as {
+    sum_assured?: number | null;
+    indicative_quote?: { status?: string; amount?: number | null } | null;
+  } | null;
+  const sumAssured = typeof policy?.sum_assured === "number" && policy.sum_assured > 0 ? policy.sum_assured : null;
+  const quote = policy?.indicative_quote;
+  const premium = quote?.status === "indicative" && typeof quote.amount === "number" && quote.amount > 0
+    ? quote.amount
+    : null;
+  return { sumAssured, premium };
+}
+
 export function UnderwritingDecisionCockpit({
   workspace,
   onReview,
@@ -220,6 +234,7 @@ export function UnderwritingDecisionCockpit({
   }, [caseId]);
 
   const readiness = history?.readiness;
+  const proposed = useMemo(() => proposedTerms(workspace), [workspace]);
   const aiSummary = useMemo(() => aiEvidenceSummary(workspace), [workspace]);
   const aiRationaleDraft = `AI evidence summary (review and tailor to your decision):\n${aiSummary}`.slice(0, 3900);
   useEffect(() => {
@@ -268,7 +283,19 @@ export function UnderwritingDecisionCockpit({
   }
 
   function selectDecision(value: DecisionForm["decision"]) {
-    setForm((current) => addAiRationaleDraft({ ...current, decision: value }, aiRationaleDraft));
+    setForm((current) => {
+      const next = { ...current, decision: value };
+      if (value === "approve") {
+        // Start from the proposed terms; the underwriter confirms or changes them.
+        if (!next.approved_sum_assured && proposed.sumAssured !== null) {
+          next.approved_sum_assured = String(proposed.sumAssured);
+        }
+        if (!next.applicable_premium && proposed.premium !== null) {
+          next.applicable_premium = String(proposed.premium);
+        }
+      }
+      return addAiRationaleDraft(next, aiRationaleDraft);
+    });
   }
 
   async function submitDecision() {
@@ -418,7 +445,11 @@ export function UnderwritingDecisionCockpit({
                     <label>Applicable premium<input type="number" min="0.01" step="0.01" required value={form.applicable_premium} onChange={(event) => setForm((current) => ({ ...current, applicable_premium: event.target.value }))} /></label>
                     <label className="decision-field-wide">{rationaleLabel}<textarea className="decision-rationale-input" rows={2} required value={form.decision_rationale} onChange={(event) => updateRationale(event.target.value)} /></label>
                   </div>
-                  <p className="decision-ai-note">Sum assured and premium are not available from connected product data, so enter verified values from the application or approved rate source.</p>
+                  <p className="decision-ai-note">
+                    {proposed.sumAssured !== null || proposed.premium !== null
+                      ? `Pre-filled from the proposed terms selected at case creation${proposed.premium !== null ? " (premium is indicative, not an official insurer quote)" : ""}. Confirm or change them to the terms you approve.${proposed.premium === null ? " No proposed premium is available, so enter the approved premium." : ""}`
+                      : "Sum assured and premium are not available from connected product data, so enter verified values from the application or approved rate source."}
+                  </p>
                   <details className="decision-optional-fields">
                     <summary>Additional terms (optional)</summary>
                     <label>Additional terms or conditions<textarea rows={2} value={form.additional_terms} onChange={(event) => setForm((current) => ({ ...current, additional_terms: event.target.value }))} /></label>

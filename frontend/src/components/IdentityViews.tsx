@@ -34,6 +34,18 @@ const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
 
 const SUBJECT_LABELS: Record<IdentitySubject, string> = { aadhaar: "Aadhaar", pan: "PAN" };
 
+type IdentityDecision = "confirmed" | "follow_up_required" | "rejected";
+const DECISION_OPTIONS: ReadonlyArray<readonly [IdentityDecision, string, string]> = [
+  ["confirmed", "Confirm identity", "The documents belong to the applicant"],
+  ["follow_up_required", "Follow-up required", "Request more documents or clarification"],
+  ["rejected", "Reject", "The documents do not establish identity"],
+];
+const DECISION_LABELS: Record<IdentityDecision, string> = {
+  confirmed: "Confirm identity",
+  follow_up_required: "Follow-up required",
+  rejected: "Reject",
+};
+
 export function MatchBadge({ status }: { status: MatchStatus }) {
   return <span className={`identity-badge match-${status}`}>{MATCH_LABELS[status]}</span>;
 }
@@ -414,11 +426,20 @@ function HumanReview({
   onError: (message: string | null) => void;
 }) {
   const mismatched = summary.matches.filter((row) => row.match_status === "mismatch");
-  const [decision, setDecision] = useState<"confirmed" | "rejected" | "follow_up_required">("confirmed");
+  const [decision, setDecision] = useState<IdentityDecision>("confirmed");
   const [rationale, setRationale] = useState("");
   const [resolved, setResolved] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const canReview = summary.documents.some((doc) => doc.state === "extracted");
+  const unresolved = mismatched.filter((row) => !resolved.includes(row.field));
+  // Mirrors the server rules so the reviewer sees what is missing before submitting.
+  const rationaleRequired = decision !== "confirmed" || mismatched.length > 0;
+  const blockers: string[] = [];
+  if (!canReview) blockers.push("Upload and process an Aadhaar or PAN document first.");
+  if (decision === "confirmed" && unresolved.length) {
+    blockers.push(`Mark every mismatch as resolved: ${unresolved.map((row) => row.label).join(", ")}.`);
+  }
+  if (rationaleRequired && !rationale.trim()) blockers.push("Enter a rationale.");
 
   async function submit() {
     setBusy(true);
@@ -432,6 +453,7 @@ function HumanReview({
         }),
       );
       setRationale("");
+      setResolved([]);
     } catch (failure) {
       onError(messageFor(failure));
     } finally {
@@ -440,57 +462,100 @@ function HumanReview({
   }
 
   return (
-    <section className="card-section" aria-label="Identity review">
-      <div className="section-heading"><h3>Identity review</h3></div>
-      <p>
-        Status: <StateBadge value={`review_${summary.review.status}`} />
-        {summary.review.decision ? <span className="muted"> · {summary.review.decision.replaceAll("_", " ")}</span> : null}
-      </p>
+    <section className="card-section identity-review" aria-label="Identity review">
+      <div className="section-heading">
+        <h3>Identity review</h3>
+        <StateBadge value={`review_${summary.review.status}`} />
+      </div>
+      {summary.review.decision && summary.review.reviewed_at ? (
+        <p className="identity-review-last">
+          Last review: <strong>{DECISION_LABELS[summary.review.decision as IdentityDecision] ?? summary.review.decision}</strong>
+          {summary.review.reviewer_subject ? ` by ${summary.review.reviewer_subject}` : ""}
+          {` on ${new Date(summary.review.reviewed_at).toLocaleString()}`}
+        </p>
+      ) : null}
       {summary.review.status === "stale" ? (
-        <p className="data-note">The data changed after the last review. Review it again.</p>
+        <p className="identity-review-warning">The documents changed after the last review. Review them again.</p>
       ) : null}
-      <label>
-        <span>Decision</span>
-        <select aria-label="Identity decision" value={decision} onChange={(event) => setDecision(event.target.value as typeof decision)}>
-          <option value="confirmed">Confirm identity</option>
-          <option value="follow_up_required">Follow-up required</option>
-          <option value="rejected">Reject</option>
-        </select>
-      </label>
-      {mismatched.length ? (
-        <fieldset>
-          <legend>Mismatches resolved</legend>
-          {mismatched.map((row) => (
-            <label key={row.field}>
-              <input
-                type="checkbox"
-                checked={resolved.includes(row.field)}
-                onChange={(event) =>
-                  setResolved((current) =>
-                    event.target.checked ? [...current, row.field] : current.filter((item) => item !== row.field),
-                  )
-                }
-              />
-              {row.label}
-            </label>
-          ))}
-        </fieldset>
-      ) : null}
-      <label>
-        <span>Rationale</span>
+
+      <fieldset className="decision-options identity-decisions">
+        <legend>Decision</legend>
+        {DECISION_OPTIONS.map(([value, label, help]) => (
+          <label className={decision === value ? "selected" : ""} key={value}>
+            <input
+              type="radio"
+              name="identity-decision"
+              value={value}
+              checked={decision === value}
+              onChange={() => setDecision(value)}
+            />
+            <span><strong>{label}</strong><small>{help}</small></span>
+          </label>
+        ))}
+      </fieldset>
+
+      <fieldset className="identity-mismatch-list">
+        <legend>Mismatches</legend>
+        {mismatched.length === 0 ? (
+          <p className="muted">No mismatches between the documents.</p>
+        ) : (
+          <>
+            <p className="muted">Tick each mismatch you have checked against the original documents.</p>
+            {mismatched.map((row) => (
+              <label key={row.field} className={resolved.includes(row.field) ? "resolved" : ""}>
+                <input
+                  type="checkbox"
+                  checked={resolved.includes(row.field)}
+                  onChange={(event) =>
+                    setResolved((current) =>
+                      event.target.checked ? [...current, row.field] : current.filter((item) => item !== row.field),
+                    )
+                  }
+                />
+                <span>
+                  <strong>{row.label}</strong>
+                  <small>
+                    KYC: {row.kyc_value ?? "—"} · Aadhaar: {row.aadhaar_value ?? "—"}
+                    {row.not_applicable_sources.includes("pan") ? "" : ` · PAN: ${row.pan_value ?? "—"}`}
+                  </small>
+                </span>
+              </label>
+            ))}
+          </>
+        )}
+      </fieldset>
+
+      <label className="form-field">
+        Rationale {rationaleRequired ? <span aria-hidden="true">*</span> : <span>(optional)</span>}
         <textarea
           aria-label="Identity review rationale"
+          rows={3}
           value={rationale}
           maxLength={2000}
+          placeholder="What did you check, and why is this decision correct?"
           onChange={(event) => setRationale(event.target.value)}
         />
       </label>
-      <button type="button" className="primary-button" disabled={busy || !canReview} onClick={() => void submit()}>
-        {busy ? "Saving…" : "Record identity review"}
-      </button>
-      <p className="data-note">
-        This records your review only. Underwriting decisions remain with the authorized underwriter.
-      </p>
+
+      {blockers.length ? (
+        <ul className="identity-review-blockers" aria-live="polite">
+          {blockers.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+      ) : null}
+
+      <div className="identity-review-footer">
+        <p className="data-note">
+          This records your review only. Underwriting decisions remain with the authorized underwriter.
+        </p>
+        <button
+          type="button"
+          className="primary-button"
+          disabled={busy || blockers.length > 0}
+          onClick={() => void submit()}
+        >
+          {busy ? "Saving…" : "Record identity review"}
+        </button>
+      </div>
     </section>
   );
 }
